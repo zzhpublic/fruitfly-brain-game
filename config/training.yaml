@@ -1,0 +1,88 @@
+# Training Configuration for Fruit Fly Brain Game
+
+# Simulation Backend
+backend: "brian2"  # Options: brian2, jax, pytorch, nengo
+device: "cuda"     # cuda, cpu, tpu
+
+# Neuron Model
+neuron_model: "LIF"  # LIF, ALIF, Izhikevich, AdEx
+dt: 0.1              # Simulation timestep (ms)
+
+# Synaptic Plasticity
+plasticity:
+  stdp:
+    enabled: true
+    tau_pre: 20.0      # ms
+    tau_post: 20.0     # ms
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 1.0
+  dopamine_gated:
+    enabled: true
+    dopamine_threshold: 0.5
+    eligibility_trace_tau: 1000.0  # ms
+    three_factor_rule: true
+
+# Neuromodulation
+neuromodulation:
+  dopamine:
+    baseline: 0.1
+    reward_scale: 1.0
+    punishment_scale: -0.5
+    decay_tau: 500.0  # ms
+  octopamine:
+    baseline: 0.05
+    arousal_scale: 0.5
+    decay_tau: 2000.0
+  serotonin:
+    baseline: 0.1
+    satiety_scale: -0.3
+    decay_tau: 5000.0
+
+# Reinforcement Learning
+rl:
+  algorithm: "actor_critic"  # actor_critic, ppo, dqn, policy_gradient
+  gamma: 0.99
+  gae_lambda: 0.95
+  entropy_coef: 0.01
+  value_coef: 0.5
+  max_grad_norm: 0.5
+  learning_rate: 1e-4
+  lr_schedule: "cosine"
+  batch_size: 64
+  n_steps: 128
+  n_epochs: 4
+  clip_range: 0.2
+
+# Training
+training:
+  total_timesteps: 10_000_000
+  eval_freq: 100_000
+  save_freq: 500_000
+  log_freq: 10_000
+  n_envs: 16
+  seed: 42
+
+# Game-specific
+games:
+  pong:
+    observation_type: "spikes"  # spikes, rates, raw
+    frame_skip: 4
+    reward_shaping: true
+  maze:
+    observation_type: "spikes"
+    max_steps: 500
+  odor_tracking:
+    observation_type: "rates"
+    plume_model: "gaussian"
+  looming:
+    observation_type: "spikes"
+    threat_threshold: 0.7
+
+# Visualization
+visualization:
+  enabled: true
+  update_freq: 1000  # steps
+  record_video: false
+  plot_regions: ["optic_lobes", "mushroom_body", "central_complex", "neuromodulatory"]

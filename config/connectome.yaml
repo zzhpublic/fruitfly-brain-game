@@ -1,0 +1,156 @@
+# Fruit Fly Brain Connectome Configuration
+# Based on FlyWire/FAFB datasets
+
+regions:
+  # Visual System (~60,000 neurons)
+  optic_lobes:
+    neurons: 44800
+    cell_types: ["L1", "L2", "L3", "L4", "L5", "Mi1", "Mi4", "Tm1", "Tm2", "Tm3", "Tm9", "LC", "LP", "HS", "VS"]
+    neurotransmitters: ["acetylcholine", "GABA", "glutamate"]
+    neuron_params:
+      C_m: 100.0
+      g_L: 10.0
+      E_L: -60.0
+      V_th: -40.0
+      V_reset: -60.0
+      tau_ref: 2.0
+      E_rev: 0.0
+      g_syn_max: 1.0
+      tau_syn: 5.0
+
+  # Learning & Memory (~2,500 neurons)
+  mushroom_body:
+    neurons: 2164
+    cell_types: ["KC_alpha_beta", "KC_alpha_prime_beta_prime", "KC_gamma", "MBON", "DAN_PAM", "DAN_PPL1"]
+    neurotransmitters: ["acetylcholine", "dopamine", "GABA"]
+    neuron_params:
+      C_m: 80.0
+      g_L: 8.0
+      E_L: -60.0
+      V_th: -45.0
+      V_reset: -60.0
+      tau_ref: 3.0
+      E_rev: -70.0
+      g_syn_max: 0.8
+      tau_syn: 10.0
+
+  # Navigation & Motor Control (~3,000 neurons)
+  central_complex:
+    neurons: 2800
+    cell_types: ["E-PG", "P-EN", "P-EG", "Delta7", "FSB", "hDelta", "vDelta", "PB-G", "PB-H"]
+    neurotransmitters: ["acetylcholine", "GABA", "glutamate"]
+    neuron_params:
+      C_m: 120.0
+      g_L: 12.0
+      E_L: -60.0
+      V_th: -40.0
+      V_reset: -60.0
+      tau_ref: 2.0
+      E_rev: -70.0
+      g_syn_max: 1.2
+      tau_syn: 5.0
+
+  # Innate Behaviors (~1,500 neurons)
+  lateral_horn:
+    neurons: 1500
+    cell_types: ["LHON", "LHIN", "PN"]
+    neurotransmitters: ["acetylcholine", "GABA", "glutamate"]
+    neuron_params:
+      C_m: 100.0
+      g_L: 10.0
+      E_L: -60.0
+      V_th: -40.0
+      V_reset: -60.0
+      tau_ref: 2.0
+      E_rev: -70.0
+      g_syn_max: 1.0
+      tau_syn: 5.0
+
+  # Neuromodulatory Systems (~500 neurons)
+  neuromodulatory:
+    neurons: 500
+    cell_types: ["DAN_PAM", "DAN_PPL1", "DAN_PPL2", "OA_VPM", "OA_VUM", "CSD", "SE0", "SE1"]
+    neurotransmitters: ["dopamine", "octopamine", "serotonin"]
+    neuron_params:
+      C_m: 150.0
+      g_L: 15.0
+      E_L: -55.0
+      V_th: -35.0
+      V_reset: -55.0
+      tau_ref: 5.0
+      E_rev: 0.0
+      g_syn_max: 0.5
+      tau_syn: 20.0
+
+  # Descending Commands (~500 neurons)
+  descending_neurons:
+    neurons: 500
+    cell_types: ["DN", "DNa", "DNb", "DNc"]
+    neurotransmitters: ["acetylcholine", "glutamate"]
+    neuron_params:
+      C_m: 200.0
+      g_L: 20.0
+      E_L: -60.0
+      V_th: -40.0
+      V_reset: -60.0
+      tau_ref: 1.0
+      E_rev: 0.0
+      g_syn_max: 2.0
+      tau_syn: 3.0
+
+# Connection probabilities between regions
+connection_probabilities:
+  "optic_lobes->mushroom_body": 0.05
+  "optic_lobes->central_complex": 0.08
+  "optic_lobes->lateral_horn": 0.06
+  "optic_lobes->descending_neurons": 0.02
+  "mushroom_body->central_complex": 0.1
+  "mushroom_body->lateral_horn": 0.05
+  "mushroom_body->descending_neurons": 0.03
+  "central_complex->descending_neurons": 0.15
+  "central_complex->mushroom_body": 0.05
+  "lateral_horn->descending_neurons": 0.1
+  "lateral_horn->mushroom_body": 0.03
+  "neuromodulatory->optic_lobes": 0.02
+  "neuromodulatory->mushroom_body": 0.05
+  "neuromodulatory->central_complex": 0.05
+  "neuromodulatory->lateral_horn": 0.05
+  "neuromodulatory->descending_neurons": 0.03
+
+# STDP parameters per connection type
+stdp_params:
+  "optic_lobes->mushroom_body":
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 1.0
+  "mushroom_body->central_complex":
+    tau_pre: 30.0
+    tau_post: 30.0
+    A_pre: 0.015
+    A_post: -0.015
+    w_min: 0.0
+    w_max: 1.0
+  "central_complex->descending_neurons":
+    tau_pre: 15.0
+    tau_post: 15.0
+    A_pre: 0.02
+    A_post: -0.02
+    w_min: 0.0
+    w_max: 1.0
+  "default":
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 1.0
+
+# Simulation parameters
+simulation:
+  dt: 0.1
+  conn_scale: 1.0
+  enforce_dale: true
+  use_neuromodulation: true

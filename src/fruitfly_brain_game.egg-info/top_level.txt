@@ -1,0 +1,8 @@
+connectome
+games
+networks
+neuromod
+neurons
+synapses
+training
+visualization

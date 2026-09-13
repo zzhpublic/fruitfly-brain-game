@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fruitfly-brain-game"
+version = "0.1.0"
+description = "Drosophila neural simulation for game playing"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "matplotlib>=3.7.0",
+    "pyyaml>=6.0",
+    "h5py>=3.8.0",
+    "zarr>=2.15.0",
+    "gymnasium>=0.29.0",
+]
+
+[project.optional-dependencies]
+brian2 = ["brian2>=2.5.0"]
+jax = ["jax>=0.4.0", "jaxlib>=0.4.0"]
+torch = ["torch>=2.0.0"]
+nengo = ["nengo>=3.2.0"]
+rl = ["stable-baselines3>=2.0.0"]
+dev = ["pytest>=7.4.0", "black>=23.0.0", "ruff>=0.1.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
