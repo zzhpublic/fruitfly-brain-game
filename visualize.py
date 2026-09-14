@@ -66,12 +66,12 @@ class BrainVisualizer:
         self.rate_buffer = {r: [] for r in network.config.regions}
         self.neuromod_buffer = {"dopamine": [], "octopamine": [], "serotonin": []}
         
-        # Sample neurons for voltage traces
+        # Sample neurons for voltage traces (local indices within region)
         self.sample_neurons = {}
         for region in network.config.regions:
-            ids = network.get_neuron_ids(region)
-            if ids:
-                self.sample_neurons[region] = ids[:min(5, len(ids))]
+            n = len(network.get_neuron_ids(region))
+            if n > 0:
+                self.sample_neurons[region] = list(range(min(5, n)))
         
         self.step_count = 0
     
@@ -155,7 +155,8 @@ class BrainVisualizer:
                 self.ax_raster.scatter(times, [y_offset + idx for idx in indices], 
                                      s=1, c=[colors[i]], alpha=0.6, label=region)
             y_offset += len(self.network.get_neuron_ids(region))
-        self.ax_raster.legend(loc='upper right', fontsize=8)
+        if any(self.spike_buffer[r] for r in self.network.config.regions):
+            self.ax_raster.legend(loc='upper right', fontsize=8)
         
         # Voltages
         self.ax_voltage.clear()
@@ -234,16 +235,17 @@ def main():
     neuron_params = {}
     for region_name, region_cfg in config.get('regions', {}).items():
         np = region_cfg.get('neuron_params', {})
+        neuron_params_cfg = region_cfg.get('neuron_params', {})
         neuron_params[region_name] = LIFParams(
-            C_m=np.get('C_m', 200.0),
-            g_L=np.get('g_L', 10.0),
-            E_L=np.get('E_L', -60.0),
-            V_th=np.get('V_th', -50.0),
-            V_reset=np.get('V_reset', -65.0),
-            tau_ref=np.get('tau_ref', 2.0),
-            E_rev=np.get('E_rev', -70.0),
-            g_syn_max=np.get('g_syn_max', 1.0),
-            tau_syn=np.get('tau_syn', 5.0),
+            C_m=neuron_params_cfg.get('C_m', 200.0),
+            g_L=neuron_params_cfg.get('g_L', 10.0),
+            E_L=neuron_params_cfg.get('E_L', -60.0),
+            V_th=neuron_params_cfg.get('V_th', -50.0),
+            V_reset=neuron_params_cfg.get('V_reset', -65.0),
+            t_ref=neuron_params_cfg.get('t_ref', 2.0),
+            E_rev=neuron_params_cfg.get('E_rev', -70.0),
+            g_syn_max=neuron_params_cfg.get('g_syn_max', 1.0),
+            tau_syn=neuron_params_cfg.get('tau_syn', 5.0),
         )
     
     stdp_params = {}
