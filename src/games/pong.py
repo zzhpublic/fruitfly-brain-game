@@ -20,8 +20,10 @@ class PongEnv(gym.Env):
                  paddle_height: int = 20,
                  ball_speed: float = 3.0,
                  max_steps: int = 10000,
-                 dt: float = 0.1):  # ms per step
+                 dt: float = 0.1,  # ms per step
+                 render_mode: Optional[str] = None):
         super().__init__()
+        self.render_mode = render_mode
         
         self.screen_width = screen_width
         self.screen_height = screen_height

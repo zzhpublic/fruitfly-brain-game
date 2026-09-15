@@ -18,8 +18,10 @@ class MazeEnv(gym.Env):
                  maze_size: int = 15,
                  n_landmarks: int = 4,
                  max_steps: int = 2000,
-                 dt: float = 0.1):
+                 dt: float = 0.1,
+                 render_mode: Optional[str] = None):
         super().__init__()
+        self.render_mode = render_mode
         
         self.maze_size = maze_size
         self.n_landmarks = n_landmarks

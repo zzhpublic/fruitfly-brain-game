@@ -21,8 +21,10 @@ class OdorNavigationEnv(gym.Env):
                  wind_dir: float = 0.0,  # radians
                  plume_sigma: float = 5.0,
                  max_steps: int = 5000,
-                 dt: float = 0.1):
+                 dt: float = 0.1,
+                 render_mode: Optional[str] = None):
         super().__init__()
+        self.render_mode = render_mode
         
         self.arena_size = arena_size
         self.wind_speed = wind_speed

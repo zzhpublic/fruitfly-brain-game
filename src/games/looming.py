@@ -17,8 +17,10 @@ class LoomingEscapeEnv(gym.Env):
     def __init__(self,
                  n_looming_neurons: int = 20,
                  max_loom_time: float = 1000.0,  # ms
-                 dt: float = 0.1):
+                 dt: float = 0.1,
+                 render_mode: Optional[str] = None):
         super().__init__()
+        self.render_mode = render_mode
         
         self.n_looming_neurons = n_looming_neurons
         self.max_loom_time = max_loom_time

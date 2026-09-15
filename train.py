@@ -5,8 +5,11 @@ Training script for fruit fly brain game playing.
 import argparse
 import numpy as np
 import yaml
+import pickle
+import json
 from pathlib import Path
 import sys
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -75,7 +78,97 @@ def create_network(config_path: str = "config/connectome.yaml", max_synapses: in
     return builder, connectome
 
 
-def train_pong(network: NetworkBuilder, n_episodes: int = 100, render: bool = False):
+def save_checkpoint(network: NetworkBuilder, episode: int, metrics: dict, 
+                    save_dir: Path, game: str, config_name: str):
+    """Save model checkpoint and metrics."""
+    save_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save synaptic weights
+    weights_data = {}
+    for (pre_r, post_r), syn in network.synapses.items():
+        weights_data[f"{pre_r}->{post_r}"] = {
+            'weights': syn.weights.copy(),
+            'pre_indices': syn.pre_indices.copy(),
+            'post_indices': syn.post_indices.copy(),
+            'pre_trace': syn.pre_trace.copy(),
+            'post_trace': syn.post_trace.copy(),
+        }
+    
+    # Save neuron states (population states)
+    neuron_states = {}
+    for region, pop in network.populations.items():
+        neuron_states[region] = {
+            'V': pop.V.copy(),
+            'refractory': pop.refractory.copy(),
+            'g_syn': pop.g_syn.copy(),
+        }
+    
+    # Save neuromodulator states
+    neuromod_states = {}
+    if network.neuromod:
+        for mod_name in ['dopamine', 'octopamine', 'serotonin']:
+            mod = getattr(network.neuromod, mod_name)
+            neuromod_states[mod_name] = {
+                'concentrations': mod.concentrations.copy() if hasattr(mod, 'concentrations') else {},
+            }
+    
+    checkpoint = {
+        'episode': episode,
+        'game': game,
+        'config': config_name,
+        'timestamp': datetime.now().isoformat(),
+        'weights': weights_data,
+        'neuron_states': neuron_states,
+        'neuromod_states': neuromod_states,
+        'metrics': metrics,
+    }
+    
+    # Save as pickle (for full state) and JSON (for metrics)
+    checkpoint_path = save_dir / f"{game}_ep{episode:06d}.pkl"
+    with open(checkpoint_path, 'wb') as f:
+        pickle.dump(checkpoint, f)
+    
+    metrics_path = save_dir / f"{game}_metrics.json"
+    # Load existing metrics
+    all_metrics = []
+    if metrics_path.exists():
+        with open(metrics_path, 'r') as f:
+            all_metrics = json.load(f)
+    all_metrics.append(metrics)
+    with open(metrics_path, 'w') as f:
+        json.dump(all_metrics, f, indent=2)
+    
+    print(f"  Checkpoint saved: {checkpoint_path}")
+
+
+def load_checkpoint(network: NetworkBuilder, checkpoint_path: Path):
+    """Load model checkpoint."""
+    with open(checkpoint_path, 'rb') as f:
+        checkpoint = pickle.load(f)
+    
+    # Restore synaptic weights
+    for (pre_r, post_r), syn in network.synapses.items():
+        key = f"{pre_r}->{post_r}"
+        if key in checkpoint['weights']:
+            data = checkpoint['weights'][key]
+            syn.weights[:] = data['weights']
+            syn.pre_trace[:] = data['pre_trace']
+            syn.post_trace[:] = data['post_trace']
+    
+    # Restore neuron states
+    for region, pop in network.populations.items():
+        if region in checkpoint['neuron_states']:
+            data = checkpoint['neuron_states'][region]
+            pop.V[:] = data['V']
+            pop.refractory[:] = data['refractory']
+            pop.g_syn[:] = data['g_syn']
+    
+    print(f"Loaded checkpoint from episode {checkpoint['episode']}")
+    return checkpoint
+
+
+def train_pong(network: NetworkBuilder, n_episodes: int = 100, render: bool = False,
+               save_dir: Path = None, save_interval: int = 100, config_name: str = "default"):
     """Train on Pong."""
     env = PongEnv()
     
@@ -84,6 +177,9 @@ def train_pong(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
     
     print(f"Optic lobe neurons: {len(optic_ids)}")
     print(f"Descending neurons: {len(descending_ids)}")
+    
+    episode_rewards = []
+    episode_scores = []
     
     for episode in range(n_episodes):
         obs, _ = env.reset()
@@ -115,19 +211,38 @@ def train_pong(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
             done = terminated or truncated
             total_reward += reward
         
+        episode_rewards.append(total_reward)
+        episode_scores.append(info['score'])
+        
         if episode % 10 == 0:
             print(f"Episode {episode}: Score={info['score']}, Reward={total_reward:.2f}")
+        
+        # Save checkpoint
+        if save_dir and (episode + 1) % save_interval == 0:
+            metrics = {
+                'episode': episode,
+                'score': info['score'],
+                'reward': total_reward,
+                'avg_reward_100': np.mean(episode_rewards[-100:]),
+                'avg_score_100': np.mean(episode_scores[-100:]),
+            }
+            save_checkpoint(network, episode, metrics, save_dir, "pong", config_name)
     
     env.close()
+    return episode_rewards, episode_scores
 
 
-def train_maze(network: NetworkBuilder, n_episodes: int = 100, render: bool = False):
+def train_maze(network: NetworkBuilder, n_episodes: int = 100, render: bool = False,
+               save_dir: Path = None, save_interval: int = 100, config_name: str = "default"):
     """Train on Maze."""
     env = MazeEnv()
     
     optic_ids = network.get_neuron_ids("optic_lobes")
     central_ids = network.get_neuron_ids("central_complex")
     descending_ids = network.get_neuron_ids("descending_neurons") or central_ids
+    
+    episode_rewards = []
+    episode_dists = []
     
     for episode in range(n_episodes):
         obs, _ = env.reset()
@@ -165,19 +280,37 @@ def train_maze(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
             done = terminated or truncated
             total_reward += reward
         
+        episode_rewards.append(total_reward)
+        episode_dists.append(info['dist_to_goal'])
+        
         if episode % 10 == 0:
             print(f"Episode {episode}: Dist={info['dist_to_goal']:.1f}, Reward={total_reward:.2f}")
+        
+        if save_dir and (episode + 1) % save_interval == 0:
+            metrics = {
+                'episode': episode,
+                'dist_to_goal': info['dist_to_goal'],
+                'reward': total_reward,
+                'avg_reward_100': np.mean(episode_rewards[-100:]),
+                'avg_dist_100': np.mean(episode_dists[-100:]),
+            }
+            save_checkpoint(network, episode, metrics, save_dir, "maze", config_name)
     
     env.close()
+    return episode_rewards, episode_dists
 
 
-def train_odor(network: NetworkBuilder, n_episodes: int = 100, render: bool = False):
+def train_odor(network: NetworkBuilder, n_episodes: int = 100, render: bool = False,
+               save_dir: Path = None, save_interval: int = 100, config_name: str = "default"):
     """Train on Odor Navigation."""
     env = OdorNavigationEnv()
     
     mb_ids = network.get_neuron_ids("mushroom_body")
     lh_ids = network.get_neuron_ids("lateral_horn")
     descending_ids = network.get_neuron_ids("descending_neurons") or lh_ids
+    
+    episode_rewards = []
+    episode_dists = []
     
     for episode in range(n_episodes):
         obs, _ = env.reset()
@@ -215,18 +348,37 @@ def train_odor(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
             done = terminated or truncated
             total_reward += reward
         
+        episode_rewards.append(total_reward)
+        episode_dists.append(info['dist'])
+        
         if episode % 10 == 0:
             print(f"Episode {episode}: Dist={info['dist']:.1f}, Conc={info['conc']:.1f}, Reward={total_reward:.2f}")
+        
+        if save_dir and (episode + 1) % save_interval == 0:
+            metrics = {
+                'episode': episode,
+                'dist': info['dist'],
+                'conc': info['conc'],
+                'reward': total_reward,
+                'avg_reward_100': np.mean(episode_rewards[-100:]),
+                'avg_dist_100': np.mean(episode_dists[-100:]),
+            }
+            save_checkpoint(network, episode, metrics, save_dir, "odor", config_name)
     
     env.close()
+    return episode_rewards, episode_dists
 
 
-def train_looming(network: NetworkBuilder, n_episodes: int = 100, render: bool = False):
+def train_looming(network: NetworkBuilder, n_episodes: int = 100, render: bool = False,
+                  save_dir: Path = None, save_interval: int = 100, config_name: str = "default"):
     """Train on Looming Escape."""
     env = LoomingEscapeEnv()
     
     optic_ids = network.get_neuron_ids("optic_lobes")
     descending_ids = network.get_neuron_ids("descending_neurons") or network.get_neuron_ids("central_complex")
+    
+    episode_rewards = []
+    episode_escaped = []
     
     for episode in range(n_episodes):
         obs, _ = env.reset()
@@ -255,10 +407,24 @@ def train_looming(network: NetworkBuilder, n_episodes: int = 100, render: bool =
             done = terminated or truncated
             total_reward += reward
         
+        episode_rewards.append(total_reward)
+        episode_escaped.append(info['escaped'])
+        
         if episode % 10 == 0:
             print(f"Episode {episode}: Escaped={info['escaped']}, Reward={total_reward:.2f}")
+        
+        if save_dir and (episode + 1) % save_interval == 0:
+            metrics = {
+                'episode': episode,
+                'escaped': info['escaped'],
+                'reward': total_reward,
+                'avg_reward_100': np.mean(episode_rewards[-100:]),
+                'escape_rate_100': np.mean(episode_escaped[-100:]),
+            }
+            save_checkpoint(network, episode, metrics, save_dir, "looming", config_name)
     
     env.close()
+    return episode_rewards, episode_escaped
 
 
 def main():
@@ -268,6 +434,9 @@ def main():
     parser.add_argument("--config", default="config/connectome.yaml")
     parser.add_argument("--render", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--save-dir", default="checkpoints", help="Directory to save checkpoints")
+    parser.add_argument("--save-interval", type=int, default=100, help="Save checkpoint every N episodes")
+    parser.add_argument("--resume", type=str, help="Path to checkpoint to resume from")
     args = parser.parse_args()
     
     np.random.seed(args.seed)
@@ -276,14 +445,21 @@ def main():
     network, connectome = create_network(args.config, max_synapses=10000)
     print(f"Network: {len(network.neurons)} neurons, {len(network.synapses)} synapse groups")
     
+    save_dir = Path(args.save_dir)
+    config_name = Path(args.config).stem
+    
+    # Resume from checkpoint if specified
+    if args.resume:
+        load_checkpoint(network, Path(args.resume))
+    
     if args.game == "pong":
-        train_pong(network, args.episodes, args.render)
+        train_pong(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
     elif args.game == "maze":
-        train_maze(network, args.episodes, args.render)
+        train_maze(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
     elif args.game == "odor":
-        train_odor(network, args.episodes, args.render)
+        train_odor(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
     elif args.game == "looming":
-        train_looming(network, args.episodes, args.render)
+        train_looming(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
     
     print("Training complete!")
 
