@@ -219,18 +219,20 @@ class ConnectomeLoader:
         
         return data
     
-    def create_synthetic(self, config: Dict = None) -> ConnectomeData:
+    def create_synthetic(self, config: Dict = None, max_synapses: int = 1000000) -> ConnectomeData:
         """Create synthetic connectome based on config.yaml specifications."""
         config = config or self.config
         data = ConnectomeData()
         
         # Create neurons per region
         neuron_id = 0
+        region_neuron_ids = {}
         for region_name, region_cfg in config.get('regions', {}).items():
             n_neurons = region_cfg.get('neurons', 1000)
             cell_types = region_cfg.get('cell_types', ['unknown'])
             neurotransmitters = region_cfg.get('neurotransmitters', ['acetylcholine'])
             
+            ids = []
             for i in range(n_neurons):
                 cell_type = np.random.choice(cell_types)
                 nt = np.random.choice(neurotransmitters)
@@ -246,34 +248,69 @@ class ConnectomeLoader:
                     neurotransmitter=nt
                 )
                 data.neurons[neuron_id] = neuron
+                ids.append(neuron_id)
                 neuron_id += 1
+            region_neuron_ids[region_name] = ids
         
-        # Create synapses based on connection probabilities
+        # Create synapses based on connection probabilities (vectorized)
         regions = list(config.get('regions', {}).keys())
         conn_probs = config.get('connection_probabilities', {})
         
+        total_synapses = 0
         for pre_region in regions:
-            pre_neurons = data.get_neurons_by_region(pre_region)
+            pre_ids = region_neuron_ids[pre_region]
+            n_pre = len(pre_ids)
             for post_region in regions:
-                post_neurons = data.get_neurons_by_region(post_region)
+                post_ids = region_neuron_ids[post_region]
+                n_post = len(post_ids)
                 
                 prob_key = f"{pre_region}->{post_region}"
                 prob = conn_probs.get(prob_key, 0.01)
                 
-                for pre_n in pre_neurons:
-                    for post_n in post_neurons:
-                        if np.random.random() < prob:
-                            syn = Synapse(
-                                pre_id=pre_n.id,
-                                post_id=post_n.id,
-                                x=(pre_n.x + post_n.x) / 2,
-                                y=(pre_n.y + post_n.y) / 2,
-                                z=(pre_n.z + post_n.z) / 2,
-                                size=np.random.exponential(1.0)
-                            )
-                            data.synapses.append(syn)
-                            pre_n.n_post += 1
-                            post_n.n_pre += 1
+                if prob <= 0 or n_pre == 0 or n_post == 0:
+                    continue
+                
+                # Expected number of connections
+                expected = n_pre * n_post * prob
+                if expected < 1:
+                    continue
+                
+                # Sample number of connections from Poisson
+                n_connections = np.random.poisson(expected)
+                n_connections = min(n_connections, n_pre * n_post)
+                
+                # Limit total synapses
+                if total_synapses + n_connections > max_synapses:
+                    n_connections = max(0, max_synapses - total_synapses)
+                
+                if n_connections == 0:
+                    continue
+                
+                # Sample pre and post indices
+                pre_idx = np.random.randint(0, n_pre, n_connections)
+                post_idx = np.random.randint(0, n_post, n_connections)
+                
+                # Create synapses in batch
+                for i in range(n_connections):
+                    pre_n = data.neurons[pre_ids[pre_idx[i]]]
+                    post_n = data.neurons[post_ids[post_idx[i]]]
+                    syn = Synapse(
+                        pre_id=pre_n.id,
+                        post_id=post_n.id,
+                        x=(pre_n.x + post_n.x) / 2,
+                        y=(pre_n.y + post_n.y) / 2,
+                        z=(pre_n.z + post_n.z) / 2,
+                        size=np.random.exponential(1.0)
+                    )
+                    data.synapses.append(syn)
+                    pre_n.n_post += 1
+                    post_n.n_pre += 1
+                
+                total_synapses += n_connections
+                if total_synapses >= max_synapses:
+                    break
+            if total_synapses >= max_synapses:
+                break
         
         data.regions = regions
         data.cell_types = list(set(n.cell_type for n in data.neurons.values()))

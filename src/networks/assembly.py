@@ -78,7 +78,7 @@ class NetworkBuilder:
                 if not region_synapses:
                     continue
                 
-                # Create STDP synapse group
+                # Create STDP synapse group using actual connectome connections
                 n_pre = len(pre_ids)
                 n_post = len(post_ids)
                 
@@ -91,17 +91,30 @@ class NetworkBuilder:
                     STDPParams()
                 )
                 
-                synapse = STDPSynapse(n_pre, n_post, stdp_params, self.config.dt)
+                # Build connection arrays from connectome data
+                pre_indices = []
+                post_indices = []
+                weights = []
                 
-                # Set weights from connectome
                 for s in region_synapses:
                     if s.pre_id in pre_id_to_idx and s.post_id in post_id_to_idx:
-                        pre_idx = pre_id_to_idx[s.pre_id]
-                        post_idx = post_id_to_idx[s.post_id]
-                        # Find connection in sparse matrix
-                        mask = (synapse.pre_indices == pre_idx) & (synapse.post_indices == post_idx)
-                        if np.any(mask):
-                            synapse.weights[mask] = s.size
+                        pre_indices.append(pre_id_to_idx[s.pre_id])
+                        post_indices.append(post_id_to_idx[s.post_id])
+                        weights.append(s.size)
+                
+                if not pre_indices:
+                    continue
+                
+                pre_indices = np.array(pre_indices, dtype=np.int32)
+                post_indices = np.array(post_indices, dtype=np.int32)
+                weights = np.array(weights, dtype=np.float32)
+                
+                # Create synapse with actual connectome connections
+                synapse = STDPSynapse(n_pre, n_post, stdp_params, self.config.dt, 
+                                      connectivity=0.0,  # Not used when indices provided
+                                      pre_indices=pre_indices,
+                                      post_indices=post_indices,
+                                      weights=weights)
                 
                 self.synapses[(pre_region, post_region)] = synapse
         

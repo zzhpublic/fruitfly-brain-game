@@ -19,29 +19,38 @@ class STDPSynapse:
     """STDP synapse with eligibility traces."""
     
     def __init__(self, n_pre: int, n_post: int, params: Optional[STDPParams] = None, 
-                 dt: float = 0.1, connectivity: float = 0.1):
+                 dt: float = 0.1, connectivity: float = 0.1,
+                 pre_indices: Optional[np.ndarray] = None,
+                 post_indices: Optional[np.ndarray] = None,
+                 weights: Optional[np.ndarray] = None):
         self.n_pre = n_pre
         self.n_post = n_post
         self.params = params or STDPParams()
         self.dt = dt
         
-        # Weight matrix (sparse)
-        self.connectivity = connectivity
-        n_connections = int(n_pre * n_post * connectivity)
-        
-        # Sparse representation
-        self.pre_indices = np.random.randint(0, n_pre, n_connections)
-        self.post_indices = np.random.randint(0, n_post, n_connections)
-        self.weights = np.random.normal(
-            self.params.w_init_mean, 
-            self.params.w_init_std, 
-            n_connections
-        ).astype(np.float32)
-        self.weights = np.clip(self.weights, self.params.w_min, self.params.w_max)
-        
         # Eligibility traces
         self.pre_trace = np.zeros(n_pre, dtype=np.float32)
         self.post_trace = np.zeros(n_post, dtype=np.float32)
+        
+        # If connectome data provided, use it; otherwise generate random sparse connections
+        if pre_indices is not None and post_indices is not None and weights is not None:
+            self.pre_indices = pre_indices
+            self.post_indices = post_indices
+            self.weights = weights
+        else:
+            # Weight matrix (sparse)
+            self.connectivity = connectivity
+            n_connections = int(n_pre * n_post * connectivity)
+            
+            # Sparse representation
+            self.pre_indices = np.random.randint(0, n_pre, n_connections)
+            self.post_indices = np.random.randint(0, n_post, n_connections)
+            self.weights = np.random.normal(
+                self.params.w_init_mean, 
+                self.params.w_init_std, 
+                n_connections
+            ).astype(np.float32)
+            self.weights = np.clip(self.weights, self.params.w_min, self.params.w_max)
         
     def step(self, pre_spikes: np.ndarray, post_spikes: np.ndarray, 
              dopamine: Optional[np.ndarray] = None):

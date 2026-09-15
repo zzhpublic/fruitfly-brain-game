@@ -21,7 +21,7 @@ from games.odor import OdorNavigationEnv
 from games.looming import LoomingEscapeEnv
 
 
-def create_network(config_path: str = "config/connectome.yaml") -> NetworkBuilder:
+def create_network(config_path: str = "config/connectome.yaml", max_synapses: int = 10000) -> NetworkBuilder:
     """Create network from config."""
     with open(config_path) as f:
         config = yaml.safe_load(f)
@@ -68,7 +68,7 @@ def create_network(config_path: str = "config/connectome.yaml") -> NetworkBuilde
     
     # Load or create connectome
     loader = ConnectomeLoader(config_path)
-    connectome = loader.create_synthetic(config)
+    connectome = loader.create_synthetic(config, max_synapses=max_synapses)
     
     builder.build_from_connectome(connectome)
     
@@ -273,7 +273,7 @@ def main():
     np.random.seed(args.seed)
     
     print(f"Creating network from {args.config}...")
-    network, connectome = create_network(args.config)
+    network, connectome = create_network(args.config, max_synapses=10000)
     print(f"Network: {len(network.neurons)} neurons, {len(network.synapses)} synapse groups")
     
     if args.game == "pong":

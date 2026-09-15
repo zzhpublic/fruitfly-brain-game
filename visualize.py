@@ -228,13 +228,19 @@ class BrainVisualizer:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="Visualize fruit fly brain activity")
+    parser.add_argument("--config", default="config/connectome_test.yaml", help="Config file")
+    parser.add_argument("--duration", type=int, default=1000, help="Duration in ms")
+    parser.add_argument("--max-synapses", type=int, default=10000, help="Max synapses for synthetic connectome")
+    args = parser.parse_args()
+    
     # Create network
-    with open("config/connectome.yaml") as f:
+    with open(args.config) as f:
         config = yaml.safe_load(f)
     
     neuron_params = {}
     for region_name, region_cfg in config.get('regions', {}).items():
-        np = region_cfg.get('neuron_params', {})
         neuron_params_cfg = region_cfg.get('neuron_params', {})
         neuron_params[region_name] = LIFParams(
             C_m=neuron_params_cfg.get('C_m', 200.0),
@@ -266,8 +272,8 @@ def main():
     )
     
     builder = NetworkBuilder(net_config)
-    loader = ConnectomeLoader("config/connectome.yaml")
-    connectome = loader.create_synthetic(config)
+    loader = ConnectomeLoader(args.config)
+    connectome = loader.create_synthetic(config, max_synapses=args.max_synapses)
     builder.build_from_connectome(connectome)
     
     # Visualize
