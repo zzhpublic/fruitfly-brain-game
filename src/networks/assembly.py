@@ -2,7 +2,7 @@
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-from neurons.lif import LIFNeuron, LIFParams
+from neurons.lif import LIFNeuron, LIFPopulation, LIFParams
 from synapses.stdp import STDPSynapse, STDPParams
 from neuromod.modulator import UnifiedNeuromodulation
 from connectome.loader import ConnectomeData, Neuron, Synapse
@@ -31,7 +31,8 @@ class NetworkBuilder:
     
     def __init__(self, config: NetworkConfig = None):
         self.config = config or NetworkConfig()
-        self.neurons: Dict[int, LIFNeuron] = {}
+        self.populations: Dict[str, LIFPopulation] = {}  # region -> population
+        self.neurons: Dict[int, LIFNeuron] = {}  # kept for compatibility
         self.synapses: Dict[Tuple[str, str], STDPSynapse] = {}  # (pre_region, post_region)
         self.neuron_to_region: Dict[int, str] = {}
         self.region_neuron_ids: Dict[str, List[int]] = {r: [] for r in self.config.regions}
@@ -39,26 +40,34 @@ class NetworkBuilder:
     
     def build_from_connectome(self, connectome: ConnectomeData):
         """Build network from connectome data."""
-        # Create neurons
-        for neuron in connectome.neurons.values():
-            if neuron.region not in self.config.regions:
+        # Create neuron populations per region
+        for region in self.config.regions:
+            n_ids = [n.id for n in connectome.neurons.values() if n.region == region]
+            if not n_ids:
                 continue
             
             # Get region-specific params or use defaults
-            params = self.config.neuron_params.get(neuron.region, LIFParams())
+            params = self.config.neuron_params.get(region, LIFParams())
             
-            # Adjust for neurotransmitter (Dale's law)
+            # Adjust for neurotransmitter (Dale's law) - use first neuron's type
             if self.config.enforce_dale:
-                if neuron.neurotransmitter == "GABA":
+                first_neuron = connectome.neurons[n_ids[0]]
+                if first_neuron.neurotransmitter == "GABA":
                     params.E_rev = -80.0  # Inhibitory
-                elif neuron.neurotransmitter == "glutamate":
+                elif first_neuron.neurotransmitter == "glutamate":
                     params.E_rev = 0.0    # Excitatory
                 # Acetylcholine: mixed, default -70
             
-            lif = LIFNeuron(params, self.config.dt)
-            self.neurons[neuron.id] = lif
-            self.neuron_to_region[neuron.id] = neuron.region
-            self.region_neuron_ids[neuron.region].append(neuron.id)
+            # Create vectorized population
+            pop = LIFPopulation(len(n_ids), params, self.config.dt)
+            self.populations[region] = pop
+            
+            # Also create individual neurons for compatibility
+            for nid in n_ids:
+                lif = LIFNeuron(params, self.config.dt)
+                self.neurons[nid] = lif
+                self.neuron_to_region[nid] = region
+                self.region_neuron_ids[region].append(nid)
         
         # Create synapses between regions
         for pre_region in self.config.regions:
@@ -78,7 +87,7 @@ class NetworkBuilder:
                 if not region_synapses:
                     continue
                 
-                # Create STDP synapse group using actual connectome connections
+                # Create STDP synapse group
                 n_pre = len(pre_ids)
                 n_post = len(post_ids)
                 
@@ -149,8 +158,27 @@ class NetworkBuilder:
                 feeding=feeding, circadian_time=circadian_time
             )
         
-        # Collect spikes from all neurons
+        # Collect spikes from all neurons (vectorized)
         all_spikes = {}
+        
+        # Pre-compute synaptic currents for each region
+        I_syn_dict = {}
+        for region in self.config.regions:
+            n_ids = self.region_neuron_ids[region]
+            if not n_ids:
+                I_syn_dict[region] = np.zeros(0)
+                continue
+            I_syn_dict[region] = np.zeros(len(n_ids))
+        
+        # Compute synaptic currents from all synapse groups
+        for (pre_r, post_r), syn in self.synapses.items():
+            pre_spikes = all_spikes.get(pre_r, np.array([], dtype=bool))
+            if len(pre_spikes) > 0:
+                I_syn = syn.compute_current(pre_spikes)
+                if len(I_syn) > 0:
+                    I_syn_dict[post_r] += I_syn
+        
+        # Step all neurons per region (vectorized)
         for region in self.config.regions:
             n_ids = self.region_neuron_ids[region]
             if not n_ids:
@@ -167,21 +195,18 @@ class NetworkBuilder:
             if self.neuromod:
                 da_conc = self.neuromod.dopamine.get_region_concentration(region)
             
-            # Step each neuron
-            spikes = np.zeros(len(n_ids), dtype=bool)
-            for i, nid in enumerate(n_ids):
-                neuron = self.neurons[nid]
-                # Add synaptic input
-                I_syn = 0.0
-                for (pre_r, post_r), syn in self.synapses.items():
-                    if post_r == region:
-                        pre_spikes = all_spikes.get(pre_r, np.array([], dtype=bool))
-                        if len(pre_spikes) > 0:
-                            I_syn += syn.compute_current(pre_spikes)[i]
-                
-                total_I = I_ext[i] + I_syn
-                spiked = neuron.step(total_I, da_conc)
-                spikes[i] = spiked
+            # Vectorized neuron step using population
+            if region in self.populations:
+                total_I = I_ext + I_syn_dict[region]
+                spikes = self.populations[region].step(total_I, da_conc)
+            else:
+                # Fallback to individual neurons
+                total_I = I_ext + I_syn_dict[region]
+                spikes = np.zeros(len(n_ids), dtype=bool)
+                for i, nid in enumerate(n_ids):
+                    neuron = self.neurons[nid]
+                    spiked = neuron.step(total_I[i], da_conc)
+                    spikes[i] = spiked
             
             all_spikes[region] = spikes
         
