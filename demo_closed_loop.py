@@ -489,7 +489,8 @@ class ClosedLoopDemo:
         
         # Spike activity indicator
         y += 10
-        total_spikes = sum(len(s) for s in self.network.get_state()["spikes"].values()) if hasattr(self.network, 'get_state') else 0
+        # Get spikes from the last network step (stored in self.last_spikes)
+        total_spikes = sum(len(s) for s in self.last_spikes.values()) if hasattr(self, 'last_spikes') else 0
         cv2.putText(display, f"Network Spikes: {total_spikes}", (panel_x, y), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
@@ -570,6 +571,7 @@ class ClosedLoopDemo:
             
             # 4. NETWORK STEP
             spikes = self.network.step(external_input=external_input)
+            self.last_spikes = spikes  # Store for overlay
             
             # 5. MAP NETWORK OUTPUT → ACTION
             action = self._map_spikes_to_action(spikes)
@@ -625,7 +627,8 @@ class ClosedLoopDemo:
         if self.show_overlay:
             spike_rates = self.screen_processor.process_frame(frame)
             external_input = self._map_screen_to_input(spike_rates)
-            spikes = self.network.step(external_input)
+            # Use stored spikes from last step to avoid advancing network
+            spikes = getattr(self, 'last_spikes', {})
             action = self._map_spikes_to_action(spikes)
             frame = self._draw_overlay(frame, spike_rates, action, 0, {})
         filename = f"closedloop_{self.game_name}_ep{self.episode}_step{self.step_count}.png"
