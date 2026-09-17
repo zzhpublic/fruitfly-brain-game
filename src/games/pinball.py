@@ -178,18 +178,35 @@ class PinballEnv(gym.Env):
         self.ball_x += self.ball_vx
         self.ball_y += self.ball_vy
         
-        # Wall collisions (left/right)
+        # Wall collisions (left/right) - add slight angle variation
         if self.ball_x - self.ball_radius <= 0:
             self.ball_vx *= -1
             self.ball_x = self.ball_radius
+            # Add small random angle variation on wall hit
+            angle_var = np.random.uniform(-0.15, 0.15)  # ~±8.5 degrees
+            speed = np.sqrt(self.ball_vx**2 + self.ball_vy**2)
+            angle = np.arctan2(self.ball_vy, self.ball_vx) + angle_var
+            self.ball_vx = speed * np.cos(angle)
+            self.ball_vy = speed * np.sin(angle)
         elif self.ball_x + self.ball_radius >= self.screen_width:
             self.ball_vx *= -1
             self.ball_x = self.screen_width - self.ball_radius
+            # Add small random angle variation on wall hit
+            angle_var = np.random.uniform(-0.15, 0.15)
+            speed = np.sqrt(self.ball_vx**2 + self.ball_vy**2)
+            angle = np.arctan2(self.ball_vy, self.ball_vx) + angle_var
+            self.ball_vx = speed * np.cos(angle)
+            self.ball_vy = speed * np.sin(angle)
         
-        # Top wall
+        # Top wall - add slight angle variation
         if self.ball_y - self.ball_radius <= 0:
             self.ball_vy *= -1
             self.ball_y = self.ball_radius
+            angle_var = np.random.uniform(-0.15, 0.15)
+            speed = np.sqrt(self.ball_vx**2 + self.ball_vy**2)
+            angle = np.arctan2(self.ball_vy, self.ball_vx) + angle_var
+            self.ball_vx = speed * np.cos(angle)
+            self.ball_vy = speed * np.sin(angle)
         
         # Paddle collision (bottom)
         paddle_left = self.paddle_x - self.paddle_width // 2
