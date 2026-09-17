@@ -105,13 +105,15 @@ class LIFPopulation:
         self.refractory = np.zeros(n_neurons, dtype=np.float32)
         self.g_syn = np.zeros(n_neurons, dtype=np.float32)
         
-    def step(self, I_ext: np.ndarray, da_conc: float = 0.0) -> np.ndarray:
+    def step(self, I_ext: np.ndarray, da_conc: float = 0.0, g_syn_input: np.ndarray = None, I_syn_ext: np.ndarray = None) -> np.ndarray:
         """
         Vectorized step for all neurons.
         
         Args:
             I_ext: Array of external currents (pA), shape (n_neurons,)
             da_conc: Dopamine concentration (modulates threshold)
+            g_syn_input: Incoming synaptic conductance (nS), shape (n_neurons,)
+            I_syn_ext: Additional synaptic current (pA) with custom reversal potential, shape (n_neurons,)
             
         Returns:
             Boolean array of spikes, shape (n_neurons,)
@@ -126,13 +128,20 @@ class LIFPopulation:
         not_refractory = ~in_refractory
         self.g_syn[not_refractory] *= np.exp(-self.dt / self.params.tau_syn)
         
+        # Add incoming synaptic conductance
+        if g_syn_input is not None:
+            self.g_syn += g_syn_input
+        
         # Dopamine modulation of threshold
         V_th_mod = self.params.V_th - self.params.da_gain * da_conc * 5.0
         
         # Membrane potential update (conductance-based)
-        # C dV/dt = -g_L(V - E_L) - g_syn(V - E_rev) + I_ext
+        # C dV/dt = -g_L(V - E_L) - g_syn(V - E_rev) + I_ext + I_syn_ext
         I_syn = self.g_syn * (self.V - self.params.E_rev)
-        dV = (-self.params.g_L * (self.V - self.params.E_L) - I_syn + I_ext) / self.params.C_m
+        total_I = I_ext
+        if I_syn_ext is not None:
+            total_I = total_I + I_syn_ext
+        dV = (-self.params.g_L * (self.V - self.params.E_L) - I_syn + total_I) / self.params.C_m
         self.V += dV * self.dt
         
         # Spike detection

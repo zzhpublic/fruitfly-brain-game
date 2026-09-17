@@ -22,11 +22,13 @@ class STDPSynapse:
                  dt: float = 0.1, connectivity: float = 0.1,
                  pre_indices: Optional[np.ndarray] = None,
                  post_indices: Optional[np.ndarray] = None,
-                 weights: Optional[np.ndarray] = None):
+                 weights: Optional[np.ndarray] = None,
+                 g_syn_max: float = 1.0):
         self.n_pre = n_pre
         self.n_post = n_post
         self.params = params or STDPParams()
         self.dt = dt
+        self.g_syn_max = g_syn_max  # Max synaptic conductance (nS)
         
         # Eligibility traces
         self.pre_trace = np.zeros(n_pre, dtype=np.float32)
@@ -104,12 +106,37 @@ class STDPSynapse:
         W[self.post_indices, self.pre_indices] = self.weights
         return W
     
-    def compute_current(self, pre_spikes: np.ndarray) -> np.ndarray:
-        """Compute postsynaptic current from presynaptic spikes."""
-        I_post = np.zeros(self.n_post, dtype=np.float32)
+    def compute_conductance(self, pre_spikes: np.ndarray) -> np.ndarray:
+        """Compute postsynaptic conductance change from presynaptic spikes.
+        
+        Returns synaptic conductance in nS. The weights are dimensionless (0-1),
+        so we multiply by g_syn_max (nS) to get conductance: g = g_syn_max * weight
+        """
+        g_post = np.zeros(self.n_post, dtype=np.float32)
         if np.any(pre_spikes):
             active_pre = np.where(pre_spikes)[0]
             for pre_idx in active_pre:
                 mask = self.pre_indices == pre_idx
-                I_post[self.post_indices[mask]] += self.weights[mask]
-        return I_post
+                # Convert weight to conductance (nS)
+                g_post[self.post_indices[mask]] += self.weights[mask] * self.g_syn_max
+        return g_post
+    
+    def compute_current(self, pre_spikes: np.ndarray, V_post: np.ndarray = None, E_rev: float = 0.0) -> np.ndarray:
+        """Compute postsynaptic current from presynaptic spikes with given driving force.
+        
+        Args:
+            pre_spikes: Boolean array of presynaptic spikes
+            V_post: Postsynaptic membrane potentials (mV), optional
+            E_rev: Reversal potential for this synapse (mV)
+            
+        Returns:
+            Synaptic current in pA (positive = depolarizing/inward current)
+        """
+        g_post = self.compute_conductance(pre_spikes)
+        if V_post is not None:
+            # Return inward current: g * (E_rev - V) 
+            # Positive when E_rev > V (excitatory), negative when E_rev < V (inhibitory)
+            return g_post * (E_rev - V_post)
+        else:
+            # Use fixed driving force of 10 mV (typical for excitatory)
+            return g_post * 10.0

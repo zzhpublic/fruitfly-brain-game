@@ -21,6 +21,7 @@ from games.pong import PongEnv
 from games.maze import MazeEnv
 from games.odor import OdorNavigationEnv
 from games.looming import LoomingEscapeEnv
+from games.pinball import PinballEnv
 
 
 class CameraProcessor:
@@ -243,6 +244,8 @@ class CameraDemo:
             self.env = OdorNavigationEnv(render_mode="human")
         elif self.game_name == "looming":
             self.env = LoomingEscapeEnv(render_mode="human")
+        elif self.game_name == "pinball":
+            self.env = PinballEnv(render_mode="human")
         else:
             raise ValueError(f"Unknown game: {self.game_name}")
         
@@ -301,6 +304,18 @@ class CameraDemo:
                         I_optic[idx] += rate * 2.0
                 external_input["optic_lobes"] = I_optic
         
+        # For pinball: optic lobes get ball/paddle motion
+        if self.game_name == "pinball":
+            optic_ids = self.network.get_neuron_ids("optic_lobes")
+            if len(optic_ids) > 0:
+                I_optic = np.zeros(len(optic_ids))
+                # Use motion for ball tracking
+                for i, rate in enumerate(spike_rates):
+                    if rate > 5:
+                        idx = int(i * len(optic_ids) / len(spike_rates)) % len(optic_ids)
+                        I_optic[idx] += rate * 1.0
+                external_input["optic_lobes"] = I_optic
+        
         return external_input
     
     def _map_spikes_to_action(self, spikes: dict) -> np.ndarray:
@@ -336,6 +351,16 @@ class CameraDemo:
             return action
             
         elif self.game_name == "looming":
+            action = np.zeros(10)
+            desc_spikes = spikes.get("central_complex", np.array([]))
+            if len(desc_spikes) > 0:
+                for i in range(10):
+                    idx = int(i * len(desc_spikes) / 10)
+                    if idx < len(desc_spikes):
+                        action[i] = desc_spikes[idx].astype(float) * 10
+            return action
+            
+        elif self.game_name == "pinball":
             action = np.zeros(10)
             desc_spikes = spikes.get("central_complex", np.array([]))
             if len(desc_spikes) > 0:
@@ -396,6 +421,9 @@ class CameraDemo:
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         elif self.game_name == "looming":
             cv2.putText(frame, f"Escaped: {info.get('escaped', False)}, Steps: {self.step_count}", (10, 150), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        elif self.game_name == "pinball":
+            cv2.putText(frame, f"Score: {info.get('score', 0)}, Hits: {info.get('hits', 0)}", (10, 150), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
         
         # Action visualization
@@ -483,7 +511,7 @@ def main():
     parser = argparse.ArgumentParser(description="Camera demo for fruit fly brain")
     parser.add_argument("--config", default="config/connectome_test.yaml", help="Config file")
     parser.add_argument("--checkpoint", type=str, help="Checkpoint to load")
-    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming"], default="pong")
+    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming", "pinball"], default="pong")
     parser.add_argument("--camera", type=int, default=0, help="Camera device ID")
     parser.add_argument("--flow", action="store_true", help="Use optical flow instead of frame diff")
     args = parser.parse_args()

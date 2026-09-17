@@ -23,6 +23,7 @@ from games.pong import PongEnv
 from games.maze import MazeEnv
 from games.odor import OdorNavigationEnv
 from games.looming import LoomingEscapeEnv
+from games.pinball import PinballEnv
 
 
 def create_network(config_path: str = "config/connectome.yaml", max_synapses: int = 10000) -> NetworkBuilder:
@@ -163,6 +164,17 @@ def map_obs_to_input(obs, network, game: str):
                 idx = int(i * len(optic_ids) / 20) % len(optic_ids)
                 I_optic[idx] += 100.0
         external_input["optic_lobes"] = I_optic
+        
+    elif game == "pinball":
+        optic_ids = network.get_neuron_ids("optic_lobes")
+        I_optic = np.zeros(len(optic_ids))
+        if len(optic_ids) > 0:
+            scale = len(optic_ids) / len(obs)
+            for i, spike in enumerate(obs):
+                if spike > 0:
+                    idx = int(i * scale) % len(optic_ids)
+                    I_optic[idx] += 50.0
+        external_input["optic_lobes"] = I_optic
     
     return external_input
 
@@ -204,6 +216,17 @@ def map_spikes_to_action(spikes, network, game: str):
         return action
         
     elif game == "looming":
+        descending_ids = network.get_neuron_ids("descending_neurons") or network.get_neuron_ids("central_complex")
+        action = np.zeros(10)
+        desc_spikes = spikes.get("central_complex", np.array([]))
+        if len(desc_spikes) > 0:
+            for i in range(10):
+                idx = int(i * len(desc_spikes) / 10)
+                if idx < len(desc_spikes):
+                    action[i] = desc_spikes[idx].astype(float) * 10
+        return action
+        
+    elif game == "pinball":
         descending_ids = network.get_neuron_ids("descending_neurons") or network.get_neuron_ids("central_complex")
         action = np.zeros(10)
         desc_spikes = spikes.get("central_complex", np.array([]))
@@ -337,9 +360,39 @@ def evaluate_looming(network: NetworkBuilder, n_episodes: int = 10, render: bool
     return escaped, rewards, survival_times
 
 
+def evaluate_pinball(network: NetworkBuilder, n_episodes: int = 10, render: bool = False):
+    """Evaluate on Pinball."""
+    env = PinballEnv(render_mode="human" if render else None)
+    
+    scores = []
+    rewards = []
+    hits = []
+    
+    for episode in range(n_episodes):
+        obs, _ = env.reset()
+        total_reward = 0
+        done = False
+        
+        while not done:
+            external_input = map_obs_to_input(obs, network, "pinball")
+            spikes = network.step(external_input=external_input)
+            action = map_spikes_to_action(spikes, network, "pinball")
+            obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            total_reward += reward
+        
+        scores.append(info['score'])
+        rewards.append(total_reward)
+        hits.append(info['hits'])
+        print(f"Episode {episode}: Score={info['score']}, Hits={info['hits']}, Reward={total_reward:.2f}")
+    
+    env.close()
+    return scores, rewards, hits
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate fruit fly brain on games")
-    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming"], required=True)
+    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming", "pinball"], required=True)
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to checkpoint .pkl file")
     parser.add_argument("--config", default="config/connectome.yaml", help="Config used for training")
     parser.add_argument("--episodes", type=int, default=10, help="Number of evaluation episodes")
@@ -415,6 +468,20 @@ def main():
             'escape_rate': float(np.mean(escaped)),
             'mean_reward': float(np.mean(rewards)),
             'mean_survival': float(np.mean(survival)),
+        }
+    elif args.game == "pinball":
+        scores, rewards, hits = evaluate_pinball(network, args.episodes, args.render)
+        results = {
+            'game': 'pinball',
+            'checkpoint': args.checkpoint,
+            'episodes': args.episodes,
+            'scores': scores,
+            'rewards': rewards,
+            'hits': hits,
+            'mean_score': float(np.mean(scores)),
+            'std_score': float(np.std(scores)),
+            'mean_reward': float(np.mean(rewards)),
+            'mean_hits': float(np.mean(hits)),
         }
     
     print("\n=== Evaluation Summary ===")

@@ -22,6 +22,7 @@ from games.pong import PongEnv
 from games.maze import MazeEnv
 from games.odor import OdorNavigationEnv
 from games.looming import LoomingEscapeEnv
+from games.pinball import PinballEnv
 
 
 class GameScreenProcessor:
@@ -263,6 +264,8 @@ class ClosedLoopDemo:
             self.env = OdorNavigationEnv()
         elif self.game_name == "looming":
             self.env = LoomingEscapeEnv()
+        elif self.game_name == "pinball":
+            self.env = PinballEnv()
         else:
             raise ValueError(f"Unknown game: {self.game_name}")
         
@@ -315,6 +318,10 @@ class ClosedLoopDemo:
         external_input = {}
         
         # Primary: optic lobes get screen input
+        # Scale factor: spike rates (0-100 Hz) → current (pA)
+        # Need ~500,000 pA to spike, so scale by ~5000
+        INPUT_SCALE = 5000.0
+        
         optic_ids = self.network.get_neuron_ids("optic_lobes")
         if len(optic_ids) > 0:
             I_optic = np.zeros(len(optic_ids))
@@ -322,7 +329,7 @@ class ClosedLoopDemo:
             for i, rate in enumerate(spike_rates):
                 if rate > 0:
                     idx = int(i * scale) % len(optic_ids)
-                    I_optic[idx] += rate * 0.5
+                    I_optic[idx] += rate * INPUT_SCALE
             external_input["optic_lobes"] = I_optic
         
         # Game-specific additional inputs
@@ -335,7 +342,7 @@ class ClosedLoopDemo:
                 right = spike_rates[len(spike_rates)//2:].sum()
                 direction = (right - left) / (left + right + 1e-6)
                 idx = int((direction + 1) / 2 * len(central_ids)) % len(central_ids)
-                I_central[idx] += abs(direction) * 50
+                I_central[idx] += abs(direction) * 50000
                 external_input["central_complex"] = I_central
         
         elif self.game_name == "odor":
@@ -344,7 +351,7 @@ class ClosedLoopDemo:
                 I_mb = np.zeros(len(mb_ids))
                 total = spike_rates.sum()
                 for i in range(len(mb_ids)):
-                    I_mb[i] += total * 0.1
+                    I_mb[i] += total * INPUT_SCALE * 0.1
                 external_input["mushroom_body"] = I_mb
         
         elif self.game_name == "looming":
@@ -354,7 +361,17 @@ class ClosedLoopDemo:
                 for i, rate in enumerate(spike_rates):
                     if rate > 10:
                         idx = int(i * len(optic_ids) / len(spike_rates)) % len(optic_ids)
-                        I_optic[idx] += rate * 2.0
+                        I_optic[idx] += rate * INPUT_SCALE * 2.0
+                external_input["optic_lobes"] = I_optic
+        
+        elif self.game_name == "pinball":
+            optic_ids = self.network.get_neuron_ids("optic_lobes")
+            if len(optic_ids) > 0:
+                I_optic = np.zeros(len(optic_ids))
+                for i, rate in enumerate(spike_rates):
+                    if rate > 5:
+                        idx = int(i * len(optic_ids) / len(spike_rates)) % len(optic_ids)
+                        I_optic[idx] += rate * INPUT_SCALE * 1.0
                 external_input["optic_lobes"] = I_optic
         
         return external_input
@@ -392,6 +409,16 @@ class ClosedLoopDemo:
             return action
             
         elif self.game_name == "looming":
+            action = np.zeros(10)
+            desc_spikes = spikes.get("central_complex", np.array([]))
+            if len(desc_spikes) > 0:
+                for i in range(10):
+                    idx = int(i * len(desc_spikes) / 10)
+                    if idx < len(desc_spikes):
+                        action[i] = desc_spikes[idx].astype(float) * 10
+            return action
+            
+        elif self.game_name == "pinball":
             action = np.zeros(10)
             desc_spikes = spikes.get("central_complex", np.array([]))
             if len(desc_spikes) > 0:
@@ -474,6 +501,9 @@ class ClosedLoopDemo:
         elif self.game_name == "looming":
             cv2.putText(display, f"Escaped: {info.get('escaped', False)}", (panel_x, y), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+        elif self.game_name == "pinball":
+            cv2.putText(display, f"Score: {info.get('score', 0)}, Hits: {info.get('hits', 0)}", (panel_x, y), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
         
         # Action visualization
         y += 40
@@ -649,7 +679,7 @@ def main():
     parser = argparse.ArgumentParser(description="Closed-loop: Game screen → Network → Game")
     parser.add_argument("--config", default="config/connectome_test.yaml", help="Config file")
     parser.add_argument("--checkpoint", type=str, help="Checkpoint to load")
-    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming"], default="pong")
+    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming", "pinball"], default="pong")
     parser.add_argument("--method", choices=["frame_diff", "optical_flow", "intensity", "edges"], 
                         default="frame_diff", help="Screen processing method")
     parser.add_argument("--scale", type=float, default=2.0, help="Display scale factor")

@@ -37,6 +37,7 @@ class NetworkBuilder:
         self.neuron_to_region: Dict[int, str] = {}
         self.region_neuron_ids: Dict[str, List[int]] = {r: [] for r in self.config.regions}
         self.neuromod = UnifiedNeuromodulation(self.config.dt) if self.config.use_neuromodulation else None
+        self.prev_spikes: Dict[str, np.ndarray] = {}  # Spikes from previous step
     
     def build_from_connectome(self, connectome: ConnectomeData):
         """Build network from connectome data."""
@@ -65,6 +66,8 @@ class NetworkBuilder:
             # Also create individual neurons for compatibility
             for nid in n_ids:
                 lif = LIFNeuron(params, self.config.dt)
+                # Store neurotransmitter for Dale's law reference
+                lif.neurotransmitter = connectome.neurons[nid].neurotransmitter
                 self.neurons[nid] = lif
                 self.neuron_to_region[nid] = region
                 self.region_neuron_ids[region].append(nid)
@@ -118,12 +121,20 @@ class NetworkBuilder:
                 post_indices = np.array(post_indices, dtype=np.int32)
                 weights = np.array(weights, dtype=np.float32)
                 
+                # Apply connection scale factor
+                weights = weights * self.config.conn_scale
+                
                 # Create synapse with actual connectome connections
+                # Use post-synaptic region's g_syn_max for current scaling
+                post_pop = self.populations.get(post_region)
+                g_syn_max = post_pop.params.g_syn_max if post_pop else 1.0
+                
                 synapse = STDPSynapse(n_pre, n_post, stdp_params, self.config.dt, 
                                       connectivity=0.0,  # Not used when indices provided
                                       pre_indices=pre_indices,
                                       post_indices=post_indices,
-                                      weights=weights)
+                                      weights=weights,
+                                      g_syn_max=g_syn_max)
                 
                 self.synapses[(pre_region, post_region)] = synapse
         
@@ -161,22 +172,27 @@ class NetworkBuilder:
         # Collect spikes from all neurons (vectorized)
         all_spikes = {}
         
-        # Pre-compute synaptic currents for each region
-        I_syn_dict = {}
-        for region in self.config.regions:
-            n_ids = self.region_neuron_ids[region]
-            if not n_ids:
-                I_syn_dict[region] = np.zeros(0)
-                continue
-            I_syn_dict[region] = np.zeros(len(n_ids))
-        
-        # Compute synaptic currents from all synapse groups
+        # Compute synaptic currents from PREVIOUS step's spikes
+        I_syn_dict = {region: np.zeros(len(self.region_neuron_ids[region])) for region in self.config.regions}
         for (pre_r, post_r), syn in self.synapses.items():
-            pre_spikes = all_spikes.get(pre_r, np.array([], dtype=bool))
+            pre_spikes = self.prev_spikes.get(pre_r, np.array([], dtype=bool))
             if len(pre_spikes) > 0:
-                I_syn = syn.compute_current(pre_spikes)
-                if len(I_syn) > 0:
+                # Get pre-synaptic region's E_rev for this synapse
+                pre_pop = self.populations.get(pre_r)
+                if pre_pop:
+                    E_rev = pre_pop.params.E_rev
+                else:
+                    E_rev = 0.0  # Default excitatory
+                
+                # Get post-synaptic population for V
+                post_pop = self.populations.get(post_r)
+                if post_pop:
+                    V_post = post_pop.V
+                    I_syn = syn.compute_current(pre_spikes, V_post, E_rev)
                     I_syn_dict[post_r] += I_syn
+                else:
+                    # Fallback to fixed driving force
+                    I_syn_dict[post_r] += syn.compute_current(pre_spikes, np.zeros(syn.n_post), 0.0)
         
         # Step all neurons per region (vectorized)
         for region in self.config.regions:
@@ -197,8 +213,9 @@ class NetworkBuilder:
             
             # Vectorized neuron step using population
             if region in self.populations:
-                total_I = I_ext + I_syn_dict[region]
-                spikes = self.populations[region].step(total_I, da_conc)
+                # Pass external current and synaptic current separately
+                # The population step uses: dV = (-g_L*(V-E_L) - I_syn_pop + I_ext + I_syn_ext) / C_m
+                spikes = self.populations[region].step(I_ext, da_conc, None, I_syn_dict[region])
             else:
                 # Fallback to individual neurons
                 total_I = I_ext + I_syn_dict[region]
@@ -209,6 +226,9 @@ class NetworkBuilder:
                     spikes[i] = spiked
             
             all_spikes[region] = spikes
+        
+        # Store spikes for next step (copy arrays to avoid reference issues)
+        self.prev_spikes = {region: spikes.copy() for region, spikes in all_spikes.items()}
         
         # Update STDP
         for (pre_r, post_r), syn in self.synapses.items():

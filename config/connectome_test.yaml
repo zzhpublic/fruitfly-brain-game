@@ -3,157 +3,239 @@ regions:
   optic_lobes:
     neurons: 448
     type: "visual"
+    neurotransmitters: ["acetylcholine", "glutamate"]
     neuron_params:
-      C_m: 200.0
+      C_m: 100.0
       g_L: 10.0
       E_L: -60.0
-      V_th: -50.0
-      V_reset: -65.0
+      V_th: -40.0
+      V_reset: -60.0
       t_ref: 2.0
-      E_rev: -70.0
-      g_syn_max: 1.0
+      E_rev: 0.0
+      g_syn_max: 100.0
       tau_syn: 5.0
   
   mushroom_body:
-    neurons: 22
+    neurons: 216
     type: "memory"
+    neurotransmitters: ["acetylcholine", "dopamine", "GABA"]
     neuron_params:
-      C_m: 150.0
+      C_m: 80.0
       g_L: 8.0
-      E_L: -65.0
-      V_th: -52.0
-      V_reset: -68.0
+      E_L: -60.0
+      V_th: -45.0
+      V_reset: -60.0
       t_ref: 3.0
-      E_rev: -75.0
-      g_syn_max: 0.8
+      E_rev: -70.0
+      g_syn_max: 80.0
       tau_syn: 10.0
   
   central_complex:
-    neurons: 28
+    neurons: 280
     type: "navigation"
+    neurotransmitters: ["acetylcholine", "GABA", "glutamate"]
     neuron_params:
-      C_m: 180.0
-      g_L: 9.0
-      E_L: -62.0
-      V_th: -51.0
-      V_reset: -66.0
-      t_ref: 2.5
-      E_rev: -72.0
-      g_syn_max: 0.9
-      tau_syn: 8.0
+      C_m: 120.0
+      g_L: 12.0
+      E_L: -60.0
+      V_th: -40.0
+      V_reset: -60.0
+      t_ref: 2.0
+      E_rev: -70.0
+      g_syn_max: 90.0
+      tau_syn: 5.0
   
   lateral_horn:
-    neurons: 15
+    neurons: 150
     type: "olfactory"
-    neuron_params:
-      C_m: 160.0
-      g_L: 8.5
-      E_L: -63.0
-      V_th: -51.5
-      V_reset: -67.0
-      t_ref: 2.5
-      E_rev: -73.0
-      g_syn_max: 0.85
-      tau_syn: 7.0
-  
-  neuromodulatory:
-    neurons: 5
-    type: "modulatory"
+    neurotransmitters: ["acetylcholine", "GABA", "glutamate"]
     neuron_params:
       C_m: 100.0
-      g_L: 5.0
-      E_L: -55.0
-      V_th: -45.0
+      g_L: 10.0
+      E_L: -60.0
+      V_th: -40.0
       V_reset: -60.0
+      t_ref: 2.0
+      E_rev: -70.0
+      g_syn_max: 85.0
+      tau_syn: 5.0
+  
+  neuromodulatory:
+    neurons: 50
+    type: "modulatory"
+    neurotransmitters: ["dopamine", "octopamine", "serotonin"]
+    neuron_params:
+      C_m: 150.0
+      g_L: 15.0
+      E_L: -55.0
+      V_th: -35.0
+      V_reset: -55.0
       t_ref: 5.0
-      E_rev: -80.0
-      g_syn_max: 0.5
+      E_rev: 0.0
+      g_syn_max: 50.0
       tau_syn: 20.0
   
   descending_neurons:
-    neurons: 5
+    neurons: 50
     type: "motor"
+    neurotransmitters: ["acetylcholine", "glutamate"]
     neuron_params:
-      C_m: 250.0
-      g_L: 12.0
-      E_L: -58.0
-      V_th: -48.0
-      V_reset: -63.0
-      t_ref: 1.5
-      E_rev: -68.0
-      g_syn_max: 1.2
+      C_m: 200.0
+      g_L: 20.0
+      E_L: -60.0
+      V_th: -40.0
+      V_reset: -60.0
+      t_ref: 1.0
+      E_rev: 0.0
+      g_syn_max: 120.0
       tau_syn: 3.0
 
 connections:
   - from: "optic_lobes"
     to: "mushroom_body"
-    probability: 0.1
+    probability: 0.5
     weight_scale: 0.5
     delay: 1.0
     stdp: "visual_to_mb"
   
   - from: "optic_lobes"
     to: "central_complex"
-    probability: 0.15
+    probability: 0.5
     weight_scale: 0.6
     delay: 1.0
     stdp: "visual_to_cx"
   
+  - from: "optic_lobes"
+    to: "lateral_horn"
+    probability: 0.5
+    weight_scale: 0.5
+    delay: 1.0
+    stdp: "visual_to_lh"
+  
+  - from: "optic_lobes"
+    to: "descending_neurons"
+    probability: 0.5
+    weight_scale: 0.7
+    delay: 1.0
+    stdp: "visual_to_dn"
+  
   - from: "mushroom_body"
     to: "lateral_horn"
-    probability: 0.2
+    probability: 0.5
     weight_scale: 0.4
     delay: 1.0
     stdp: "mb_to_lh"
   
+  - from: "mushroom_body"
+    to: "central_complex"
+    probability: 0.5
+    weight_scale: 0.4
+    delay: 1.0
+    stdp: "mb_to_cx"
+  
   - from: "central_complex"
     to: "descending_neurons"
-    probability: 0.3
+    probability: 0.8
     weight_scale: 0.8
     delay: 0.5
     stdp: "cx_to_dn"
   
+  - from: "central_complex"
+    to: "mushroom_body"
+    probability: 0.5
+    weight_scale: 0.4
+    delay: 1.0
+    stdp: "cx_to_mb"
+  
   - from: "lateral_horn"
     to: "descending_neurons"
-    probability: 0.3
+    probability: 0.8
     weight_scale: 0.7
     delay: 0.5
     stdp: "lh_to_dn"
   
+  - from: "lateral_horn"
+    to: "central_complex"
+    probability: 0.5
+    weight_scale: 0.4
+    delay: 1.0
+    stdp: "lh_to_cx"
+  
   - from: "neuromodulatory"
     to: "mushroom_body"
-    probability: 0.5
+    probability: 0.8
     weight_scale: 0.3
     delay: 2.0
     stdp: null
   
   - from: "neuromodulatory"
     to: "central_complex"
-    probability: 0.5
+    probability: 0.8
     weight_scale: 0.3
     delay: 2.0
     stdp: null
   
   - from: "neuromodulatory"
     to: "lateral_horn"
-    probability: 0.5
+    probability: 0.8
     weight_scale: 0.3
     delay: 2.0
     stdp: null
   
   - from: "neuromodulatory"
     to: "optic_lobes"
-    probability: 0.3
+    probability: 0.5
     weight_scale: 0.2
     delay: 2.0
     stdp: null
   
   - from: "neuromodulatory"
     to: "descending_neurons"
-    probability: 0.5
+    probability: 0.8
     weight_scale: 0.4
     delay: 1.0
     stdp: null
+  
+  - from: "optic_lobes"
+    to: "optic_lobes"
+    probability: 0.1
+    weight_scale: 0.3
+    delay: 0.5
+    stdp: "recurrent"
+  
+  - from: "central_complex"
+    to: "central_complex"
+    probability: 0.3
+    weight_scale: 0.4
+    delay: 0.5
+    stdp: "recurrent"
+  
+  - from: "mushroom_body"
+    to: "mushroom_body"
+    probability: 0.3
+    weight_scale: 0.3
+    delay: 1.0
+    stdp: "recurrent"
+
+connection_probabilities:
+  "optic_lobes->mushroom_body": 0.5
+  "optic_lobes->central_complex": 0.5
+  "optic_lobes->lateral_horn": 0.5
+  "optic_lobes->descending_neurons": 0.5
+  "mushroom_body->lateral_horn": 0.5
+  "mushroom_body->central_complex": 0.5
+  "central_complex->descending_neurons": 0.8
+  "central_complex->mushroom_body": 0.5
+  "lateral_horn->descending_neurons": 0.8
+  "lateral_horn->central_complex": 0.5
+  "neuromodulatory->mushroom_body": 0.8
+  "neuromodulatory->central_complex": 0.8
+  "neuromodulatory->lateral_horn": 0.8
+  "neuromodulatory->optic_lobes": 0.5
+  "neuromodulatory->descending_neurons": 0.8
+  "optic_lobes->optic_lobes": 0.1
+  "central_complex->central_complex": 0.3
+  "mushroom_body->mushroom_body": 0.3
 
 stdp_params:
   visual_to_mb:
@@ -162,7 +244,7 @@ stdp_params:
     A_pre: 0.01
     A_post: -0.012
     w_min: 0.0
-    w_max: 1.0
+    w_max: 100.0
   
   visual_to_cx:
     tau_pre: 20.0
@@ -170,7 +252,23 @@ stdp_params:
     A_pre: 0.01
     A_post: -0.012
     w_min: 0.0
-    w_max: 1.0
+    w_max: 100.0
+  
+  visual_to_lh:
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 100.0
+  
+  visual_to_dn:
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 100.0
   
   mb_to_lh:
     tau_pre: 20.0
@@ -178,7 +276,15 @@ stdp_params:
     A_pre: 0.01
     A_post: -0.012
     w_min: 0.0
-    w_max: 1.0
+    w_max: 100.0
+  
+  mb_to_cx:
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 100.0
   
   cx_to_dn:
     tau_pre: 20.0
@@ -186,7 +292,15 @@ stdp_params:
     A_pre: 0.01
     A_post: -0.012
     w_min: 0.0
-    w_max: 1.0
+    w_max: 100.0
+  
+  cx_to_mb:
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 100.0
   
   lh_to_dn:
     tau_pre: 20.0
@@ -194,10 +308,26 @@ stdp_params:
     A_pre: 0.01
     A_post: -0.012
     w_min: 0.0
-    w_max: 1.0
+    w_max: 100.0
+  
+  lh_to_cx:
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 100.0
+  
+  recurrent:
+    tau_pre: 20.0
+    tau_post: 20.0
+    A_pre: 0.01
+    A_post: -0.012
+    w_min: 0.0
+    w_max: 100.0
 
 simulation:
   dt: 0.1
-  conn_scale: 1.0
-  enforce_dale: true
+  conn_scale: 100.0
+  enforce_dale: false
   use_neuromodulation: true

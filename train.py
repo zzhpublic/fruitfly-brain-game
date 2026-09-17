@@ -22,6 +22,7 @@ from games.pong import PongEnv
 from games.maze import MazeEnv
 from games.odor import OdorNavigationEnv
 from games.looming import LoomingEscapeEnv
+from games.pinball import PinballEnv
 
 
 def create_network(config_path: str = "config/connectome.yaml", max_synapses: int = 10000) -> NetworkBuilder:
@@ -427,9 +428,81 @@ def train_looming(network: NetworkBuilder, n_episodes: int = 100, render: bool =
     return episode_rewards, episode_escaped
 
 
+def train_pinball(network: NetworkBuilder, n_episodes: int = 100, render: bool = False,
+                  save_dir: Path = None, save_interval: int = 100, config_name: str = "default"):
+    """Train on Pinball."""
+    env = PinballEnv()
+    
+    optic_ids = network.get_neuron_ids("optic_lobes")
+    descending_ids = network.get_neuron_ids("descending_neurons") or network.get_neuron_ids("central_complex")
+    
+    print(f"Optic lobe neurons: {len(optic_ids)}")
+    print(f"Descending neurons: {len(descending_ids)}")
+    
+    episode_rewards = []
+    episode_scores = []
+    episode_hits = []
+    
+    for episode in range(n_episodes):
+        obs, _ = env.reset()
+        total_reward = 0
+        done = False
+        
+        while not done:
+            # Map observation to network input
+            external_input = {}
+            if len(optic_ids) > 0:
+                I_optic = np.zeros(len(optic_ids))
+                scale = len(optic_ids) / len(obs)
+                for i, spike in enumerate(obs):
+                    if spike > 0:
+                        idx = int(i * scale) % len(optic_ids)
+                        I_optic[idx] += 50.0
+                external_input["optic_lobes"] = I_optic
+            
+            # Network step
+            spikes = network.step(external_input=external_input)
+            
+            # Map network output to action
+            action = np.zeros(10)
+            if len(descending_ids) > 0:
+                desc_spikes = spikes.get("central_complex", np.array([]))
+                if len(desc_spikes) > 0:
+                    for i in range(10):
+                        idx = int(i * len(desc_spikes) / 10)
+                        if idx < len(desc_spikes):
+                            action[i] = desc_spikes[idx].astype(float) * 10
+            
+            obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            total_reward += reward
+        
+        episode_rewards.append(total_reward)
+        episode_scores.append(info['score'])
+        episode_hits.append(info['hits'])
+        
+        print(f"Episode {episode}: Score={info['score']}, Hits={info['hits']}, Reward={total_reward:.2f}")
+        
+        # Save checkpoint
+        if save_dir and (episode + 1) % save_interval == 0:
+            metrics = {
+                'episode': episode,
+                'score': info['score'],
+                'hits': info['hits'],
+                'reward': total_reward,
+                'avg_reward_100': np.mean(episode_rewards[-100:]),
+                'avg_score_100': np.mean(episode_scores[-100:]),
+                'avg_hits_100': np.mean(episode_hits[-100:]),
+            }
+            save_checkpoint(network, episode, metrics, save_dir, "pinball", config_name)
+    
+    env.close()
+    return episode_rewards, episode_scores, episode_hits
+
+
 def main():
     parser = argparse.ArgumentParser(description="Train fruit fly brain on games")
-    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming"], default="pong")
+    parser.add_argument("--game", choices=["pong", "maze", "odor", "looming", "pinball"], default="pong")
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--config", default="config/connectome.yaml")
     parser.add_argument("--render", action="store_true")
@@ -460,6 +533,8 @@ def main():
         train_odor(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
     elif args.game == "looming":
         train_looming(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
+    elif args.game == "pinball":
+        train_pinball(network, args.episodes, args.render, save_dir, args.save_interval, config_name)
     
     print("Training complete!")
 
