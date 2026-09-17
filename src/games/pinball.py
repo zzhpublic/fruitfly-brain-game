@@ -163,7 +163,7 @@ class PinballEnv(gym.Env):
                 target_x = np.clip(predicted_x, 
                                    self.paddle_width // 2, 
                                    self.screen_width - self.paddle_width // 2)
-                move = (target_x - self.paddle_x) * 0.3  # Smooth movement
+                move = (target_x - self.paddle_x) * 1.0  # Instant movement
             else:
                 move = 0
         else:
@@ -198,13 +198,16 @@ class PinballEnv(gym.Env):
         
         if (self.ball_y + self.ball_radius >= paddle_top and
             paddle_left <= self.ball_x <= paddle_right):
-            self.ball_vy *= -1.05  # Slight speed increase
+            self.ball_vy *= -1  # Reverse direction, keep speed constant
             self.ball_y = paddle_top - self.ball_radius
             
             # Angle based on where ball hits paddle
             hit_pos = (self.ball_x - self.paddle_x) / (self.paddle_width / 2)
-            self.ball_vx = self.ball_speed * hit_pos * 1.5
-            self.ball_vy = -abs(self.ball_vy) * 1.02
+            # Set velocity magnitude to ball_speed, direction based on hit position
+            # hit_pos in [-1, 1], map to angle in [-80°, 80°] for more horizontal movement
+            angle = hit_pos * np.radians(80)
+            self.ball_vx = self.ball_speed * np.sin(angle)
+            self.ball_vy = -self.ball_speed * np.cos(angle)
             
             self.score += 1
             self.hits += 1
