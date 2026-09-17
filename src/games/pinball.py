@@ -23,7 +23,7 @@ class PinballEnv(gym.Env):
     def __init__(self,
                  screen_width: int = 160,
                  screen_height: int = 120,
-                 paddle_width: int = 30,
+                 paddle_width: int = 20,  # Shorter paddle
                  paddle_height: int = 5,
                  ball_radius: int = 2,  # Smaller ball
                  ball_speed: float = 4.0,
