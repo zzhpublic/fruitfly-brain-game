@@ -25,13 +25,15 @@ class PinballEnv(gym.Env):
                  screen_height: int = 120,
                  paddle_width: int = 30,
                  paddle_height: int = 5,
-                 ball_radius: int = 4,
+                 ball_radius: int = 2,  # Smaller ball
                  ball_speed: float = 4.0,
                  max_steps: int = 10000,
                  dt: float = 0.1,  # ms per step
-                 render_mode: Optional[str] = None):
+                 render_mode: Optional[str] = None,
+                 auto_paddle: bool = True):  # Auto-paddle prediction
         super().__init__()
         self.render_mode = render_mode
+        self.auto_paddle = auto_paddle
         
         self.screen_width = screen_width
         self.screen_height = screen_height
@@ -142,8 +144,32 @@ class PinballEnv(gym.Env):
     
     def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict]:
         """Execute one step."""
-        # Decode action
-        move = self._decode_action(action)
+        # Auto-paddle: predict where ball will hit bottom and move there
+        if self.auto_paddle:
+            # Predict ball x position when it reaches paddle height
+            paddle_top = self.screen_height - self.paddle_height
+            if self.ball_vy > 0:  # Ball moving down
+                time_to_paddle = (paddle_top - self.ball_y) / self.ball_vy
+                predicted_x = self.ball_x + self.ball_vx * time_to_paddle
+                
+                # Account for wall bounces
+                while predicted_x < 0 or predicted_x > self.screen_width:
+                    if predicted_x < 0:
+                        predicted_x = -predicted_x
+                    elif predicted_x > self.screen_width:
+                        predicted_x = 2 * self.screen_width - predicted_x
+                
+                # Move paddle towards predicted position
+                target_x = np.clip(predicted_x, 
+                                   self.paddle_width // 2, 
+                                   self.screen_width - self.paddle_width // 2)
+                move = (target_x - self.paddle_x) * 0.3  # Smooth movement
+            else:
+                move = 0
+        else:
+            # Decode action from network
+            move = self._decode_action(action)
+        
         self.paddle_x = np.clip(self.paddle_x + move, 
                                 self.paddle_width // 2, 
                                 self.screen_width - self.paddle_width // 2)
