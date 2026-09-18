@@ -2,10 +2,10 @@
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-from neurons.lif import LIFNeuron, LIFPopulation, LIFParams
-from synapses.stdp import STDPSynapse, STDPParams
-from neuromod.modulator import UnifiedNeuromodulation
-from connectome.loader import ConnectomeData, Neuron, Synapse
+from ..neurons.lif import LIFNeuron, LIFPopulation, LIFParams
+from ..synapses.stdp import STDPSynapse, STDPParams
+from ..neuromod.modulator import UnifiedNeuromodulation
+from ..connectome.loader import ConnectomeData, Neuron, Synapse
 
 @dataclass
 class NetworkConfig:

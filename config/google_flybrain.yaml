@@ -1,0 +1,321 @@
+# Google FlyBrain / NeuPrint Integration Configuration
+# Copy to config/google_flybrain.yaml and customize
+
+# NeuPrint API Settings
+neuprint:
+  server: "https://neuprint.janelia.org"
+  dataset: "hemibrain:v1.2.1"  # Options: hemibrain:v1.2.1, flywire_fafb:v1.0
+  token: ""  # Optional: set NEUPRINT_TOKEN env var instead
+  timeout: 300
+
+# FlyWire API Settings
+flywire:
+  server: "https://flywire.ai"
+  token: ""  # Optional: set FLYWIRE_TOKEN env var instead
+  timeout: 300
+
+# Cache Settings
+cache:
+  directory: "./data/flybrain_cache"
+  max_size_gb: 10
+
+# Target Regions for Visual-Motor Pathway
+# Based on hemibrain region names
+target_regions:
+  # Optic Lobes (visual input)
+  optic_lobes:
+    - "ME(R)"      # Medulla right
+    - "ME(L)"      # Medulla left
+    - "LO(R)"      # Lobula right
+    - "LO(L)"      # Lobula left
+    - "LOX(R)"     # Lobula plate right
+    - "LOX(L)"     # Lobula plate left
+    - "LP(R)"      # Lobula plate right (alt)
+    - "LP(L)"      # Lobula plate left (alt)
+    - "AME(R)"     # Accessory medulla right
+    - "AME(L)"     # Accessory medulla left
+  
+  # Central Complex (navigation, motor planning)
+  central_complex:
+    - "PB"         # Protocerebral bridge
+    - "EB"         # Ellipsoid body
+    - "FB"         # Fan-shaped body
+    - "NO"         # Noduli
+    - "AB(L)"      # Asymmetric body left
+    - "AB(R)"      # Asymmetric body right
+  
+  # Mushroom Body (learning, memory)
+  mushroom_body:
+    - "MB"         # Mushroom body (all)
+    - "MB_CA"      # Calyx
+    - "MB_PED"     # Peduncle
+    - "MB_VL"      # Vertical lobe
+    - "MB_ML"      # Medial lobe
+  
+  # Lateral Horn (olfactory, innate behavior)
+  lateral_horn:
+    - "LH(R)"      # Lateral horn right
+    - "LH(L)"      # Lateral horn left
+    - "SLP(R)"     # Superior lateral protocerebrum right
+    - "SLP(L)"     # Superior lateral protocerebrum left
+  
+  # Descending Neurons (motor output)
+  descending_neurons:
+    - "DN"         # All descending neurons
+    - "DNa"        # DNa type
+    - "DNb"        # DNb type
+    - "DNc"        # DNc type
+    - "DNd"        # DNd type
+    - "DNg"        # DNg type
+
+# Cell Types of Interest
+cell_types:
+  # Visual projection neurons
+  visual:
+    - "Tm"         # Transmedulla
+    - "TmY"        # Transmedulla Y
+    - "TmY5a"      # Specific TmY
+    - "TmY9"       # Specific TmY
+    - "TmY10"      # Specific TmY
+    - "TmY14"      # Specific TmY
+    - "TmY15"      # Specific TmY
+    - "TmY18"      # Specific TmY
+    - "TmY20"      # Specific TmY
+    - "TmY21"      # Specific TmY
+    - "TmY22"      # Specific TmY
+    - "TmY23"      # Specific TmY
+    - "TmY24"      # Specific TmY
+    - "TmY25"      # Specific TmY
+    - "TmY26"      # Specific TmY
+    - "TmY27"      # Specific TmY
+    - "TmY28"      # Specific TmY
+    - "TmY29"      # Specific TmY
+    - "TmY30"      # Specific TmY
+    - "TmY31"      # Specific TmY
+    - "TmY32"      # Specific TmY
+    - "TmY33"      # Specific TmY
+    - "TmY34"      # Specific TmY
+    - "TmY35"      # Specific TmY
+    - "TmY36"      # Specific TmY
+    - "TmY37"      # Specific TmY
+    - "TmY38"      # Specific TmY
+    - "TmY39"      # Specific TmY
+    - "TmY40"      # Specific TmY
+    - "TmY41"      # Specific TmY
+    - "TmY42"      # Specific TmY
+    - "TmY43"      # Specific TmY
+    - "TmY44"      # Specific TmY
+    - "TmY45"      # Specific TmY
+    - "TmY46"      # Specific TmY
+    - "TmY47"      # Specific TmY
+    - "TmY48"      # Specific TmY
+    - "TmY49"      # Specific TmY
+    - "TmY50"      # Specific TmY
+    - "TmY51"      # Specific TmY
+    - "TmY52"      # Specific TmY
+    - "TmY53"      # Specific TmY
+    - "TmY54"      # Specific TmY
+    - "TmY55"      # Specific TmY
+    - "TmY56"      # Specific TmY
+    - "TmY57"      # Specific TmY
+    - "TmY58"      # Specific TmY
+    - "TmY59"      # Specific TmY
+    - "TmY60"      # Specific TmY
+    - "TmY61"      # Specific TmY
+    - "TmY62"      # Specific TmY
+    - "TmY63"      # Specific TmY
+    - "TmY64"      # Specific TmY
+    - "TmY65"      # Specific TmY
+    - "TmY66"      # Specific TmY
+    - "TmY67"      # Specific TmY
+    - "TmY68"      # Specific TmY
+    - "TmY69"      # Specific TmY
+    - "TmY70"      # Specific TmY
+    - "TmY71"      # Specific TmY
+    - "TmY72"      # Specific TmY
+    - "TmY73"      # Specific TmY
+    - "TmY74"      # Specific TmY
+    - "TmY75"      # Specific TmY
+    - "TmY76"      # Specific TmY
+    - "TmY77"      # Specific TmY
+    - "TmY78"      # Specific TmY
+    - "TmY79"      # Specific TmY
+    - "TmY80"      # Specific TmY
+    - "TmY81"      # Specific TmY
+    - "TmY82"      # Specific TmY
+    - "TmY83"      # Specific TmY
+    - "TmY84"      # Specific TmY
+    - "TmY85"      # Specific TmY
+    - "TmY86"      # Specific TmY
+    - "TmY87"      # Specific TmY
+    - "TmY88"      # Specific TmY
+    - "TmY89"      # Specific TmY
+    - "TmY90"      # Specific TmY
+    - "TmY91"      # Specific TmY
+    - "TmY92"      # Specific TmY
+    - "TmY93"      # Specific TmY
+    - "TmY94"      # Specific TmY
+    - "TmY95"      # Specific TmY
+    - "TmY96"      # Specific TmY
+    - "TmY97"      # Specific TmY
+    - "TmY98"      # Specific TmY
+    - "TmY99"      # Specific TmY
+    - "TmY100"     # Specific TmY
+    - "LC"         # Lobula columnar
+    - "LPLC"       # Lobula plate lobula columnar
+    - "LPTC"       # Lobula plate tangential
+  
+  # Central complex neurons
+  central_complex:
+    - "PEN"        # Protocerebral bridge - ellipsoid body - noduli
+    - "EPG"        # Ellipsoid body - protocerebral bridge - gall
+    - "PEG"        # Protocerebral bridge - ellipsoid body - gall
+    - "PFN"        # Protocerebral bridge - fan-shaped body - noduli
+    - "PFL"        # Protocerebral bridge - fan-shaped body - lateral
+    - "FR"         # Fan-shaped body - round body
+    - "FC"         # Fan-shaped body - columnar
+    - "FS"         # Fan-shaped body - stratified
+    - "hDelta"     # hDelta neurons
+    - "vDelta"     # vDelta neurons
+  
+  # Mushroom body neurons
+  mushroom_body:
+    - "KC"         # Kenyon cells
+    - "APL"        # Anterior paired lateral
+    - "DAN"        # Dopaminergic neurons
+    - "MBON"       # Mushroom body output neurons
+    - "PPL"        # Protocerebral posterior lateral
+    - "PAM"        # Protocerebral anterior medial
+  
+  # Descending neurons
+  descending:
+    - "DNa"        # DNa type
+    - "DNb"        # DNb type
+    - "DNc"        # DNc type
+    - "DNd"        # DNd type
+    - "DNg"        # DNg type
+    - "DNp"        # DNp type
+    - "DN"         # Generic descending
+
+# Connection Probabilities (for synthetic fallback)
+# These are approximate based on literature
+connection_probabilities:
+  # Optic lobe -> Central complex
+  "ME(R)->PB": 0.02
+  "ME(L)->PB": 0.02
+  "LO(R)->PB": 0.015
+  "LO(L)->PB": 0.015
+  "LOX(R)->PB": 0.01
+  "LOX(L)->PB": 0.01
+  
+  # Optic lobe -> Mushroom body
+  "ME(R)->MB": 0.005
+  "ME(L)->MB": 0.005
+  "LO(R)->MB": 0.003
+  "LO(L)->MB": 0.003
+  
+  # Optic lobe -> Lateral horn
+  "ME(R)->LH(R)": 0.01
+  "ME(L)->LH(L)": 0.01
+  "LO(R)->LH(R)": 0.008
+  "LO(L)->LH(L)": 0.008
+  
+  # Central complex internal
+  "PB->EB": 0.05
+  "EB->FB": 0.05
+  "FB->NO": 0.05
+  "PB->FB": 0.03
+  
+  # Central complex -> Descending
+  "FB->DN": 0.02
+  "PB->DN": 0.015
+  "EB->DN": 0.01
+  
+  # Mushroom body -> Descending
+  "MB->DN": 0.01
+  
+  # Lateral horn -> Descending
+  "LH(R)->DN": 0.015
+  "LH(L)->DN": 0.015
+  
+  # Recurrent within regions
+  "PB->PB": 0.03
+  "EB->EB": 0.03
+  "FB->FB": 0.03
+  "MB->MB": 0.02
+  "LH(R)->LH(R)": 0.02
+  "LH(L)->LH(L)": 0.02
+
+# Neuron Parameters by Region
+neuron_params:
+  optic_lobes:
+    C_m: 150.0
+    g_L: 12.0
+    E_L: -60.0
+    V_th: -40.0
+    V_reset: -60.0
+    t_ref: 1.5
+    E_exc: 0.0
+    E_inh: -75.0
+  
+  central_complex:
+    C_m: 200.0
+    g_L: 10.0
+    E_L: -60.0
+    V_th: -40.0
+    V_reset: -60.0
+    t_ref: 2.0
+    E_exc: 0.0
+    E_inh: -75.0
+  
+  mushroom_body:
+    C_m: 100.0
+    g_L: 8.0
+    E_L: -65.0
+    V_th: -45.0
+    V_reset: -65.0
+    t_ref: 3.0
+    E_exc: 0.0
+    E_inh: -80.0
+  
+  lateral_horn:
+    C_m: 180.0
+    g_L: 10.0
+    E_L: -60.0
+    V_th: -40.0
+    V_reset: -60.0
+    t_ref: 2.0
+    E_exc: 0.0
+    E_inh: -75.0
+  
+  descending_neurons:
+    C_m: 300.0
+    g_L: 15.0
+    E_L: -55.0
+    V_th: -35.0
+    V_reset: -55.0
+    t_ref: 1.0
+    E_exc: 0.0
+    E_inh: -70.0
+
+# Neuromodulator Targets
+neuromodulator_targets:
+  dopamine:
+    regions: ["mushroom_body", "central_complex", "lateral_horn"]
+    receptors: ["D1", "D2"]
+  
+  octopamine:
+    regions: ["optic_lobes", "central_complex", "descending_neurons"]
+    receptors: ["OAMB", "Octbeta"]
+  
+  serotonin:
+    regions: ["mushroom_body", "central_complex", "descending_neurons"]
+    receptors: ["5HT1A", "5HT2A", "5HT7"]
+
+# Download Settings
+download:
+  max_neurons_per_region: 2000
+  max_total_neurons: 20000
+  max_synapses: 1000000
+  chunk_size: 5000
+  parallel_requests: 4
