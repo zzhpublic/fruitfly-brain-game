@@ -331,3 +331,4 @@ simulation:
   conn_scale: 100.0
   enforce_dale: false
   use_neuromodulation: true
+  max_synapses: 500000

@@ -19,6 +19,8 @@ matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 import matplotlib.gridspec as gridspec
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='matplotlib')
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -251,7 +253,9 @@ class BrainActivationVisualizer:
                     self.ax_rates.plot(x, history, label=region, 
                                        color=self.region_colors.get(region, '#888888'), linewidth=1.5)
         
-        self.ax_rates.legend(loc='upper right', fontsize=8)
+        handles, labels = self.ax_rates.get_legend_handles_labels()
+        if handles:
+            self.ax_rates.legend(loc='upper right', fontsize=8)
         if self.step_count > 1:
             self.ax_rates.set_xlim(max(0, self.step_count - self.history_len), self.step_count)
     
@@ -281,7 +285,10 @@ class BrainActivationVisualizer:
         bars = self.ax_voltage.bar(regions, voltages, color=colors, alpha=0.7, edgecolor='black')
         self.ax_voltage.axhline(y=-40, color='red', linestyle='--', alpha=0.5, label='Threshold (-40mV)')
         self.ax_voltage.axhline(y=-60, color='gray', linestyle='--', alpha=0.5, label='Rest (-60mV)')
-        self.ax_voltage.legend(fontsize=8)
+        handles, labels = self.ax_voltage.get_legend_handles_labels()
+        if handles:
+            self.ax_voltage.legend(fontsize=8)
+        self.ax_voltage.set_xticks(range(len(regions)))
         self.ax_voltage.set_xticklabels(regions, rotation=45, ha='right')
     
     def update_game(self):
@@ -375,6 +382,7 @@ def main():
     parser.add_argument('--save-frames', action='store_true', help='Save frames as images')
     parser.add_argument('--output-dir', type=str, default='./brain_activation_frames', help='Output directory')
     parser.add_argument('--auto-paddle', action='store_true', default=True, help='Auto-paddle for pinball')
+    parser.add_argument('--headless', action='store_true', default=True, help='Run in headless mode (no display)')
     args = parser.parse_args()
     
     # Create output directory

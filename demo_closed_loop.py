@@ -10,19 +10,23 @@ import cv2
 import yaml
 import sys
 import time
+import os
 from pathlib import Path
+
+# Don't set QT_QPA_PLATFORM - let xvfb handle it
+# os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from networks.assembly import NetworkBuilder, NetworkConfig
-from neurons.lif import LIFParams
-from synapses.stdp import STDPParams
-from connectome.loader import ConnectomeLoader
-from games.pong import PongEnv
-from games.maze import MazeEnv
-from games.odor import OdorNavigationEnv
-from games.looming import LoomingEscapeEnv
-from games.pinball import PinballEnv
+from src.networks.assembly import NetworkBuilder, NetworkConfig
+from src.neurons.lif import LIFParams
+from src.synapses.stdp import STDPParams
+from src.connectome.loader import ConnectomeLoader
+from src.games.pong import PongEnv
+from src.games.maze import MazeEnv
+from src.games.odor import OdorNavigationEnv
+from src.games.looming import LoomingEscapeEnv
+from src.games.pinball import PinballEnv
 
 
 class GameScreenProcessor:
@@ -130,7 +134,8 @@ class ClosedLoopDemo:
     
     def __init__(self, config_path: str, checkpoint_path: str = None,
                  game: str = "pong", method: str = "frame_diff",
-                 render_scale: float = 2.0, fps_limit: int = 30):
+                 render_scale: float = 2.0, fps_limit: int = 30,
+                 headless: bool = False, max_steps: int = 0):
         self.config_path = config_path
         self.checkpoint_path = checkpoint_path
         self.game_name = game
@@ -138,6 +143,8 @@ class ClosedLoopDemo:
         self.render_scale = render_scale
         self.fps_limit = fps_limit
         self.frame_time = 1.0 / fps_limit
+        self.headless = headless
+        self.max_steps = max_steps
         
         # Load config
         with open(config_path) as f:
@@ -161,11 +168,12 @@ class ClosedLoopDemo:
             method=method
         )
         
-        # Display window
-        self.window_name = f"Fruit Fly Brain - {game.upper()} (Closed Loop)"
-        cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(self.window_name, 
-                        int(640 * render_scale), int(480 * render_scale))
+        # Display window (only if not headless)
+        if not self.headless:
+            self.window_name = f"Fruit Fly Brain - {game.upper()} (Closed Loop)"
+            cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(self.window_name, 
+                            int(640 * render_scale), int(480 * render_scale))
         
         # Stats
         self.step_count = 0
@@ -368,10 +376,15 @@ class ClosedLoopDemo:
             optic_ids = self.network.get_neuron_ids("optic_lobes")
             if len(optic_ids) > 0:
                 I_optic = np.zeros(len(optic_ids))
-                for i, rate in enumerate(spike_rates):
-                    if rate > 5:
-                        idx = int(i * len(optic_ids) / len(spike_rates)) % len(optic_ids)
-                        I_optic[idx] += rate * INPUT_SCALE * 1.0
+                # Use game observation directly (like brain activation demo)
+                obs = self.env._encode_observation()
+                if len(obs) != len(optic_ids):
+                    if len(obs) < len(optic_ids):
+                        repeats = int(np.ceil(len(optic_ids) / len(obs)))
+                        obs = np.tile(obs, repeats)[:len(optic_ids)]
+                    else:
+                        obs = obs[:len(optic_ids)]
+                I_optic = obs * INPUT_SCALE
                 external_input["optic_lobes"] = I_optic
         
         return external_input
@@ -419,13 +432,14 @@ class ClosedLoopDemo:
             return action
             
         elif self.game_name == "pinball":
-            action = np.zeros(10)
-            desc_spikes = spikes.get("central_complex", np.array([]))
+            action = np.zeros(3)  # LEFT, STAY, RIGHT
+            desc_spikes = spikes.get("descending_neurons", np.array([]))
             if len(desc_spikes) > 0:
-                for i in range(10):
-                    idx = int(i * len(desc_spikes) / 10)
-                    if idx < len(desc_spikes):
-                        action[i] = desc_spikes[idx].astype(float) * 10
+                left_spikes = desc_spikes[:5].sum() if len(desc_spikes) >= 5 else 0
+                right_spikes = desc_spikes[5:10].sum() if len(desc_spikes) >= 10 else 0
+                stay_spikes = desc_spikes[10:15].sum() if len(desc_spikes) >= 15 else 0
+                rates = [left_spikes/5, stay_spikes/5, right_spikes/5]
+                action = np.array(rates)
             return action
         
         return np.array([])
@@ -542,14 +556,15 @@ class ClosedLoopDemo:
         print("\n=== CLOSED-LOOP DEMO ===")
         print("Game Screen → Network → Action → Game")
         print("==========================\n")
-        print("Controls:")
-        print("  Q - Quit")
-        print("  P - Pause/Resume")
-        print("  R - Reset game")
-        print("  S - Save screenshot")
-        print("  O - Toggle overlay")
-        print("  M - Change processing method")
-        print("  +/- - Adjust FPS limit")
+        if not self.headless:
+            print("Controls:")
+            print("  Q - Quit")
+            print("  P - Pause/Resume")
+            print("  R - Reset game")
+            print("  S - Save screenshot")
+            print("  O - Toggle overlay")
+            print("  M - Change processing method")
+            print("  +/- - Adjust FPS limit")
         print("==========================\n")
         
         last_time = time.time()
@@ -557,29 +572,30 @@ class ClosedLoopDemo:
         while self.running:
             loop_start = time.time()
             
-            # Handle keys
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord('q'):
-                break
-            elif key == ord('p'):
-                self.paused = not self.paused
-                print(f"{'Paused' if self.paused else 'Resumed'}")
-            elif key == ord('r'):
-                self._reset_game()
-            elif key == ord('s'):
-                self._save_screenshot()
-            elif key == ord('o'):
-                self.show_overlay = not self.show_overlay
-            elif key == ord('m'):
-                self._cycle_method()
-            elif key == ord('+') or key == ord('='):
-                self.fps_limit = min(120, self.fps_limit + 5)
-                self.frame_time = 1.0 / self.fps_limit
-                print(f"FPS limit: {self.fps_limit}")
-            elif key == ord('-') or key == ord('_'):
-                self.fps_limit = max(5, self.fps_limit - 5)
-                self.frame_time = 1.0 / self.fps_limit
-                print(f"FPS limit: {self.fps_limit}")
+            # Handle keys (only if not headless)
+            if not self.headless:
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    break
+                elif key == ord('p'):
+                    self.paused = not self.paused
+                    print(f"{'Paused' if self.paused else 'Resumed'}")
+                elif key == ord('r'):
+                    self._reset_game()
+                elif key == ord('s'):
+                    self._save_screenshot()
+                elif key == ord('o'):
+                    self.show_overlay = not self.show_overlay
+                elif key == ord('m'):
+                    self._cycle_method()
+                elif key == ord('+') or key == ord('='):
+                    self.fps_limit = min(120, self.fps_limit + 5)
+                    self.frame_time = 1.0 / self.fps_limit
+                    print(f"FPS limit: {self.fps_limit}")
+                elif key == ord('-') or key == ord('_'):
+                    self.fps_limit = max(5, self.fps_limit - 5)
+                    self.frame_time = 1.0 / self.fps_limit
+                    print(f"FPS limit: {self.fps_limit}")
             
             if self.paused:
                 # Still show frame when paused
@@ -587,7 +603,8 @@ class ClosedLoopDemo:
                 if self.show_overlay:
                     frame = self._draw_overlay(frame, np.zeros(self.screen_processor.n_neurons), 
                                              np.array([]), 0, {})
-                cv2.imshow(self.window_name, frame)
+                if not self.headless:
+                    cv2.imshow(self.window_name, frame)
                 continue
             
             # 1. GET GAME SCREEN
@@ -611,14 +628,24 @@ class ClosedLoopDemo:
             self.total_reward += reward
             self.step_count += 1
             
+            # Progress output (every 20 steps)
+            if self.step_count % 20 == 0:
+                total_spikes = sum(len(s) for s in spikes.values())
+                active_regions = [r for r, s in spikes.items() if len(s) > 0]
+                print(f"Step {self.step_count:4d}: {total_spikes:6d} spikes | "
+                      f"Active: {', '.join(active_regions) if active_regions else 'none'} | "
+                      f"Action: {action[:3] if len(action) >= 3 else action} | "
+                      f"Reward: {reward:.2f}")
+            
             # 7. DRAW OVERLAY
             if self.show_overlay:
                 display_frame = self._draw_overlay(frame, spike_rates, action, reward, info)
             else:
                 display_frame = frame
             
-            # 8. SHOW
-            cv2.imshow(self.window_name, display_frame)
+            # 8. SHOW (only if not headless)
+            if not self.headless:
+                cv2.imshow(self.window_name, display_frame)
             
             # 9. CHECK GAME OVER
             if terminated or truncated:
@@ -627,6 +654,11 @@ class ClosedLoopDemo:
                       f"Total reward: {self.total_reward:.2f}, Steps: {self.step_count}")
                 self._reset_game()
             
+            # Check max steps
+            if self.max_steps > 0 and self.step_count >= self.max_steps:
+                print(f"Reached max steps ({self.max_steps}), stopping...")
+                break
+            
             # FPS limiting
             elapsed = time.time() - loop_start
             sleep_time = self.frame_time - elapsed
@@ -634,7 +666,8 @@ class ClosedLoopDemo:
                 time.sleep(sleep_time)
         
         # Cleanup
-        cv2.destroyAllWindows()
+        if not self.headless:
+            cv2.destroyAllWindows()
         self.env.close()
         print(f"\nDemo ended. Episodes: {self.episode}, Total steps: {self.step_count}")
     
@@ -684,6 +717,8 @@ def main():
                         default="frame_diff", help="Screen processing method")
     parser.add_argument("--scale", type=float, default=2.0, help="Display scale factor")
     parser.add_argument("--fps", type=int, default=30, help="FPS limit")
+    parser.add_argument("--headless", action="store_true", help="Run without display (for CI/servers)")
+    parser.add_argument("--max-steps", type=int, default=0, help="Maximum steps (0 = unlimited)")
     args = parser.parse_args()
     
     demo = ClosedLoopDemo(
@@ -692,7 +727,9 @@ def main():
         game=args.game,
         method=args.method,
         render_scale=args.scale,
-        fps_limit=args.fps
+        fps_limit=args.fps,
+        headless=args.headless,
+        max_steps=args.max_steps
     )
     
     try:
