@@ -20,53 +20,56 @@ cache:
   max_size_gb: 10
 
 # Target Regions for Visual-Motor Pathway
-# Based on hemibrain region names
+# Based on hemibrain cell types (not region names - hemibrain uses cell types)
 target_regions:
-  # Optic Lobes (visual input)
+  # Optic Lobes (visual input) - use cell types
   optic_lobes:
-    - "ME(R)"      # Medulla right
-    - "ME(L)"      # Medulla left
-    - "LO(R)"      # Lobula right
-    - "LO(L)"      # Lobula left
-    - "LOX(R)"     # Lobula plate right
-    - "LOX(L)"     # Lobula plate left
-    - "LP(R)"      # Lobula plate right (alt)
-    - "LP(L)"      # Lobula plate left (alt)
-    - "AME(R)"     # Accessory medulla right
-    - "AME(L)"     # Accessory medulla left
+    - "LC"         # Lobula columnar
+    - "LPLC"       # Lobula plate lobula columnar
+    - "LPTC"       # Lobula plate tangential
+    - "Tm"         # Transmedulla
+    - "TmY"        # Transmedulla Y
+    - "mALC"       # Medulla accessory lobula columnar
+    - "AVLP"       # Anterior ventrolateral protocerebrum
   
   # Central Complex (navigation, motor planning)
   central_complex:
-    - "PB"         # Protocerebral bridge
-    - "EB"         # Ellipsoid body
-    - "FB"         # Fan-shaped body
-    - "NO"         # Noduli
-    - "AB(L)"      # Asymmetric body left
-    - "AB(R)"      # Asymmetric body right
+    - "PEN"        # Protocerebral bridge - ellipsoid body - noduli
+    - "EPG"        # Ellipsoid body - protocerebral bridge - gall
+    - "PEG"        # Protocerebral bridge - ellipsoid body - gall
+    - "PFN"        # Protocerebral bridge - fan-shaped body - noduli
+    - "PFL"        # Protocerebral bridge - fan-shaped body - lateral
+    - "FR"         # Fan-shaped body - round body
+    - "FC"         # Fan-shaped body - columnar
+    - "FS"         # Fan-shaped body - stratified
+    - "FB"         # Fan-shaped body neurons
+    - "hDelta"     # hDelta neurons
+    - "vDelta"     # vDelta neurons
   
   # Mushroom Body (learning, memory)
   mushroom_body:
-    - "MB"         # Mushroom body (all)
-    - "MB_CA"      # Calyx
-    - "MB_PED"     # Peduncle
-    - "MB_VL"      # Vertical lobe
-    - "MB_ML"      # Medial lobe
+    - "KC"         # Kenyon cells
+    - "APL"        # Anterior paired lateral
+    - "DAN"        # Dopaminergic neurons
+    - "MBON"       # Mushroom body output neurons
+    - "PPL"        # Protocerebral posterior lateral
+    - "PAM"        # Protocerebral anterior medial
   
   # Lateral Horn (olfactory, innate behavior)
   lateral_horn:
-    - "LH(R)"      # Lateral horn right
-    - "LH(L)"      # Lateral horn left
-    - "SLP(R)"     # Superior lateral protocerebrum right
-    - "SLP(L)"     # Superior lateral protocerebrum left
+    - "LH"         # Lateral horn neurons
+    - "LHPV"       # Lateral horn projection neurons
   
   # Descending Neurons (motor output)
   descending_neurons:
-    - "DN"         # All descending neurons
     - "DNa"        # DNa type
     - "DNb"        # DNb type
     - "DNc"        # DNc type
     - "DNd"        # DNd type
     - "DNg"        # DNg type
+    - "DNp"        # DNp type
+    - "DN"         # Generic descending
+    - "MDN"        # Moonwalker descending neuron
 
 # Cell Types of Interest
 cell_types:

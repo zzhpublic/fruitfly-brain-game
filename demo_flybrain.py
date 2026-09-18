@@ -69,11 +69,11 @@ def demo_fetch_visual_neurons():
     config = create_flybrain_config_from_env()
     integrator = FlyBrainIntegrator(config)
     
-    # Fetch medulla neurons (primary visual input)
-    logger.info("Fetching ME(R) neurons...")
+    # Fetch LC neurons (lobula columnar - visual projection)
+    logger.info("Fetching LC neurons...")
     try:
-        neurons = integrator.fetch_region_neurons("ME(R)", max_neurons=100)
-        logger.info(f"Found {len(neurons)} neurons in ME(R)")
+        neurons = integrator.fetch_cell_type_neurons("LC", max_neurons=100)
+        logger.info(f"Found {len(neurons)} LC neurons")
         
         # Show cell types
         cell_types = {}
@@ -92,7 +92,7 @@ def demo_fetch_visual_neurons():
 
 
 def demo_fetch_subcircuit():
-    """Fetch a subcircuit between regions."""
+    """Fetch a subcircuit between cell types."""
     logger.info("=" * 60)
     logger.info("DEMO 3: Fetch Visual-Motor Subcircuit")
     logger.info("=" * 60)
@@ -100,9 +100,12 @@ def demo_fetch_subcircuit():
     config = create_flybrain_config_from_env()
     integrator = FlyBrainIntegrator(config)
     
-    # Define visual-motor pathway regions
-    pre_regions = ["ME(R)", "ME(L)", "LO(R)", "LO(L)"]  # Optic lobes
-    post_regions = ["PB", "EB", "FB", "DN"]  # Central complex + descending
+    # Define visual-motor pathway cell types
+    pre_regions = ["LC", "LPLC", "LPTC", "Tm", "TmY", "mALC", "AVLP"]  # Optic lobes
+    post_regions = ["PEN", "EPG", "PEG", "PFN", "PFL", "FR", "FC", "FS", "FB", "hDelta", "vDelta",  # Central complex
+                    "KC", "APL", "DAN", "MBON", "PPL", "PAM",  # Mushroom body
+                    "LH", "LHPV",  # Lateral horn
+                    "DNa", "DNb", "DNc", "DNd", "DNg", "DNp", "DN", "MDN"]  # Descending neurons
     
     logger.info(f"Pre-regions (input): {pre_regions}")
     logger.info(f"Post-regions (output): {post_regions}")
@@ -117,15 +120,15 @@ def demo_fetch_subcircuit():
         logger.info(f"Total neurons: {len(neurons)}")
         logger.info(f"Total synapses: {len(synapses)}")
         
-        # Count by region
-        region_counts = {}
+        # Count by cell type
+        type_counts = {}
         for n in neurons:
-            region = n.get('region', 'unknown')
-            region_counts[region] = region_counts.get(region, 0) + 1
+            ct = n.get('type', 'unknown')
+            type_counts[ct] = type_counts.get(ct, 0) + 1
         
-        logger.info("Neurons per region:")
-        for region, count in sorted(region_counts.items()):
-            logger.info(f"  {region}: {count}")
+        logger.info("Neurons per cell type:")
+        for ct, count in sorted(type_counts.items()):
+            logger.info(f"  {ct}: {count}")
         
         return neurons, synapses
     except Exception as e:
@@ -174,19 +177,21 @@ def demo_build_network(connectome_data):
         return None
     
     try:
+        # Create network config
+        from src.networks.assembly import NetworkConfig
+        config = NetworkConfig()
         # Create network builder
-        builder = NetworkBuilder(connectome_data)
+        builder = NetworkBuilder(config)
         
         # Build populations and synapses
-        builder.build_populations()
-        builder.build_synapses()
+        builder.build_from_connectome(connectome_data)
         
         logger.info(f"Network built:")
         logger.info(f"  Populations: {list(builder.populations.keys())}")
         logger.info(f"  Synapses: {list(builder.synapses.keys())}")
         
         for name, pop in builder.populations.items():
-            logger.info(f"  {name}: {pop.n} neurons")
+            logger.info(f"  {name}: {pop.n_neurons} neurons")
         
         for name, syn in builder.synapses.items():
             logger.info(f"  {name}: {syn.weights.shape} weights")
@@ -224,15 +229,15 @@ def demo_network_step(builder):
             return
         
         # Create input spike pattern (simulate moving object)
-        optic_input = np.zeros(n_optic.n)
+        optic_input = np.zeros(n_optic.n_neurons)
         # Activate a subset of neurons (simulate receptive field)
-        active_indices = np.random.choice(n_optic.n, size=min(50, n_optic.n), replace=False)
+        active_indices = np.random.choice(n_optic.n_neurons, size=min(50, n_optic.n_neurons), replace=False)
         optic_input[active_indices] = 1.0
         
         logger.info(f"Injecting input into {len(active_indices)} optic lobe neurons")
         
         # Step network
-        spikes = builder.step(dt=1.0, optic_lobe_input=optic_input)
+        spikes = builder.step(external_input={'optic_lobes': optic_input})
         
         # Report activity
         total_spikes = 0
@@ -247,7 +252,7 @@ def demo_network_step(builder):
         # Test multiple steps
         logger.info("Running 10 steps...")
         for step in range(10):
-            spikes = builder.step(dt=1.0, optic_lobe_input=optic_input)
+            spikes = builder.step(external_input={'optic_lobes': optic_input})
             total = sum(s.sum() for s in spikes.values())
             if step % 3 == 0:
                 logger.info(f"  Step {step}: {total:.0f} total spikes")
@@ -281,11 +286,12 @@ def demo_full_pipeline():
         logger.info(f"Cached connectome as: {cache_name}")
     
     # Build network
-    builder = NetworkBuilder(connectome_data)
-    builder.build_populations()
-    builder.build_synapses()
+    from src.networks.assembly import NetworkConfig
+    config = NetworkConfig()
+    builder = NetworkBuilder(config)
+    builder.build_from_connectome(connectome_data)
     
-    logger.info(f"Network ready: {sum(p.n for p in builder.populations.values())} neurons")
+    logger.info(f"Network ready: {sum(p.n_neurons for p in builder.populations.values())} neurons")
     
     # Test with game-like input
     logger.info("Testing with game-like visual input...")
@@ -301,13 +307,13 @@ def demo_full_pipeline():
         
         if optic_pop:
             # Moving Gaussian blob
-            center = int(optic_pop.n * (0.3 + 0.4 * np.sin(frame * 0.3)))
-            width = max(1, int(optic_pop.n * 0.05))
-            input_spikes = np.zeros(optic_pop.n)
-            for i in range(max(0, center-width), min(optic_pop.n, center+width)):
+            center = int(optic_pop.n_neurons * (0.3 + 0.4 * np.sin(frame * 0.3)))
+            width = max(1, int(optic_pop.n_neurons * 0.05))
+            input_spikes = np.zeros(optic_pop.n_neurons)
+            for i in range(max(0, center-width), min(optic_pop.n_neurons, center+width)):
                 input_spikes[i] = np.exp(-(i-center)**2 / (2*width**2))
             
-            spikes = builder.step(dt=1.0, optic_lobe_input=input_spikes)
+            spikes = builder.step(external_input={'optic_lobes': input_spikes})
             total = sum(s.sum() for s in spikes.values())
             if frame % 5 == 0:
                 logger.info(f"  Frame {frame}: {total:.0f} spikes")
@@ -343,7 +349,7 @@ def demo_without_token():
     # Test
     optic_pop = builder.populations.get('optic_lobes')
     if optic_pop:
-        input_spikes = np.zeros(optic_pop.n_neurons)
+        input_spikes = np.zeros(optic_pop.n_neurons_neurons)
         input_spikes[:50] = 1.0
         spikes = builder.step(external_input={'optic_lobes': input_spikes})
         total = sum(s.sum() for s in spikes.values())

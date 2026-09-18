@@ -14,7 +14,6 @@ References:
 
 import os
 import json
-import requests
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Any
@@ -22,6 +21,14 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Try to import neuprint-python client
+try:
+    import neuprint
+    NEUPRINT_AVAILABLE = True
+except ImportError:
+    NEUPRINT_AVAILABLE = False
+    logger.warning("neuprint-python not installed. Install with: pip install neuprint-python")
 
 
 @dataclass
@@ -45,25 +52,33 @@ class FlyBrainConfig:
 
 
 class NeuPrintClient:
-    """Client for NeuPrint API (hemibrain, flywire_fafb datasets)."""
+    """Client for NeuPrint API (hemibrain, flywire_fafb datasets) using neuprint-python."""
     
     def __init__(self, config: FlyBrainConfig):
         self.config = config
-        self.base_url = f"{config.neuprint_server}/api/custom/neuprint"
-        self.headers = {"Content-Type": "application/json"}
-        if config.neuprint_token:
-            self.headers["Authorization"] = f"Bearer {config.neuprint_token}"
+        if not NEUPRINT_AVAILABLE:
+            raise ImportError("neuprint-python not installed. Run: pip install neuprint-python")
+        
+        self.client = neuprint.Client(
+            config.neuprint_server,
+            dataset=config.neuprint_dataset,
+            token=config.neuprint_token
+        )
     
     def _query(self, cypher: str) -> Dict:
-        """Execute Cypher query against NeuPrint."""
-        url = f"{self.base_url}/query"
-        payload = {
-            "cypher": cypher,
-            "dataset": self.config.neuprint_dataset
-        }
-        response = requests.post(url, json=payload, headers=self.headers, timeout=self.config.timeout)
-        response.raise_for_status()
-        return response.json()
+        """Execute Cypher query against NeuPrint using neuprint-python."""
+        try:
+            result = self.client.fetch_custom(cypher)
+            if hasattr(result, 'values'):
+                # Convert numpy array to list of lists
+                return {"data": result.values.tolist()}
+            elif hasattr(result, 'to_dict'):
+                return {"data": result.to_dict('records')}
+            else:
+                return {"data": result}
+        except Exception as e:
+            logger.error(f"NeuPrint query failed: {e}")
+            raise
     
     def get_neurons_by_region(self, region: str, limit: int = 10000) -> List[Dict]:
         """Get neurons in a brain region."""
@@ -80,10 +95,10 @@ class NeuPrintClient:
         return result.get('data', [])
     
     def get_neurons_by_type(self, cell_type: str, limit: int = 10000) -> List[Dict]:
-        """Get neurons by cell type."""
+        """Get neurons by cell type (uses CONTAINS for partial matching)."""
         cypher = f"""
         MATCH (n:Neuron)
-        WHERE n.type = '{cell_type}'
+        WHERE n.type CONTAINS '{cell_type}'
         RETURN n.bodyId as bodyId, n.type as type, n.instance as instance,
                n.region as region, n.hemisphere as hemisphere,
                n.x as x, n.y as y, n.z as z,
@@ -212,19 +227,22 @@ class FlyBrainIntegrator:
         return regions
     
     def fetch_region_neurons(self, region: str, max_neurons: int = 5000) -> List[Dict]:
-        """Fetch neurons for a specific region."""
-        return self.neuprint.get_neurons_by_region(region, limit=max_neurons)
+        """Fetch neurons for a specific region (uses cell type matching)."""
+        return self.neuprint.get_neurons_by_type(region, limit=max_neurons)
     
     def fetch_cell_type_neurons(self, cell_type: str, max_neurons: int = 5000) -> List[Dict]:
         """Fetch neurons for a specific cell type."""
-        return self.neuprint.get_neurons_by_type(cell_type, limit=max_neurons)
+        raw = self.neuprint.get_neurons_by_type(cell_type, limit=max_neurons)
+        # Convert list of lists to list of dicts
+        keys = ['bodyId', 'type', 'instance', 'region', 'hemisphere', 'x', 'y', 'z', 'pre', 'post']
+        return [dict(zip(keys, row)) for row in raw]
     
     def fetch_subcircuit(self, 
                          pre_regions: List[str], 
                          post_regions: List[str],
                          max_neurons_per_region: int = 1000) -> Tuple[List[Dict], List[Dict]]:
         """
-        Fetch a subcircuit between pre and post regions.
+        Fetch a subcircuit between pre and post cell types.
         
         Returns:
             (neurons, synapses) lists
@@ -232,16 +250,16 @@ class FlyBrainIntegrator:
         all_neurons = {}
         all_synapses = []
         
-        # Fetch neurons from all regions
-        for region in pre_regions + post_regions:
-            neurons = self.fetch_region_neurons(region, max_neurons_per_region)
+        # Fetch neurons from all cell types
+        for cell_type in pre_regions + post_regions:
+            neurons = self.fetch_cell_type_neurons(cell_type, max_neurons_per_region)
             for n in neurons:
                 all_neurons[n['bodyId']] = n
         
         pre_ids = [n['bodyId'] for n in all_neurons.values() 
-                   if n['region'] in pre_regions]
+                   if n.get('type', '') in pre_regions]
         post_ids = [n['bodyId'] for n in all_neurons.values() 
-                    if n['region'] in post_regions]
+                    if n.get('type', '') in post_regions]
         
         # Fetch synapses between them
         synapses = self.neuprint.get_synapses_between(pre_ids, post_ids)
@@ -256,12 +274,41 @@ class FlyBrainIntegrator:
         
         data = ConnectomeData()
         
+        # Map hemibrain cell types to our brain regions
+        cell_type_to_region = {
+            # Optic lobes
+            'LC': 'optic_lobes', 'LPLC': 'optic_lobes', 'LPTC': 'optic_lobes',
+            'Tm': 'optic_lobes', 'TmY': 'optic_lobes', 'mALC': 'optic_lobes', 'AVLP': 'optic_lobes',
+            # Central complex
+            'PEN': 'central_complex', 'EPG': 'central_complex', 'PEG': 'central_complex',
+            'PFN': 'central_complex', 'PFL': 'central_complex', 'FR': 'central_complex',
+            'FC': 'central_complex', 'FS': 'central_complex', 'FB': 'central_complex',
+            'hDelta': 'central_complex', 'vDelta': 'central_complex',
+            # Mushroom body
+            'KC': 'mushroom_body', 'APL': 'mushroom_body', 'DAN': 'mushroom_body',
+            'MBON': 'mushroom_body', 'PPL': 'mushroom_body', 'PAM': 'mushroom_body',
+            # Lateral horn
+            'LH': 'lateral_horn', 'LHPV': 'lateral_horn',
+            # Descending neurons
+            'DNa': 'descending_neurons', 'DNb': 'descending_neurons', 'DNc': 'descending_neurons',
+            'DNd': 'descending_neurons', 'DNg': 'descending_neurons', 'DNp': 'descending_neurons',
+            'DN': 'descending_neurons', 'MDN': 'descending_neurons',
+        }
+        
+        def get_region(cell_type: str) -> str:
+            for prefix, region in cell_type_to_region.items():
+                if cell_type.startswith(prefix):
+                    return region
+            return 'unknown'
+        
         # Convert neurons
         for n in neurons:
+            cell_type = n.get('type', 'unknown')
+            region = get_region(cell_type)
             neuron = Neuron(
                 id=n['bodyId'],
-                region=n.get('region', 'unknown'),
-                cell_type=n.get('type', 'unknown'),
+                region=region,
+                cell_type=cell_type,
                 hemisphere=n.get('hemisphere', 'unknown'),
                 x=n.get('x', 0.0),
                 y=n.get('y', 0.0),
@@ -270,6 +317,7 @@ class FlyBrainIntegrator:
                 n_post=n.get('post', 0),
                 neurotransmitter=n.get('nt', 'unknown')
             )
+            data.neurons[neuron.id] = neuron
             data.neurons[neuron.id] = neuron
         
         # Convert synapses
@@ -300,23 +348,23 @@ class FlyBrainIntegrator:
         """
         Build a connectome optimized for game playing.
         
-        Target regions for visual-motor pathway:
-        - Optic lobe regions (ME, LO, LOX, LP)
-        - Central complex (PB, EB, FB, NO)
-        - Mushroom body (MB)
-        - Lateral horn (LH)
-        - Descending neurons (DN)
+        Target cell types for visual-motor pathway:
+        - Optic lobe cell types (LC, LPLC, LPTC, Tm, TmY, mALC, AVLP)
+        - Central complex (PEN, EPG, PEG, PFN, PFL, FR, FC, FS, FB, hDelta, vDelta)
+        - Mushroom body (KC, APL, DAN, MBON, PPL, PAM)
+        - Lateral horn (LH, LHPV)
+        - Descending neurons (DNa, DNb, DNc, DNd, DNg, DNp, DN, MDN)
         """
         if target_regions is None:
             target_regions = [
-                'ME(R)', 'ME(L)', 'LO(R)', 'LO(L)', 'LOX(R)', 'LOX(L)',  # Optic lobes
-                'PB', 'EB', 'FB', 'NO',  # Central complex
-                'MB',  # Mushroom body
-                'LH(R)', 'LH(L)',  # Lateral horn
-                'DN'  # Descending neurons
+                'LC', 'LPLC', 'LPTC', 'Tm', 'TmY', 'mALC', 'AVLP',  # Optic lobes
+                'PEN', 'EPG', 'PEG', 'PFN', 'PFL', 'FR', 'FC', 'FS', 'FB', 'hDelta', 'vDelta',  # Central complex
+                'KC', 'APL', 'DAN', 'MBON', 'PPL', 'PAM',  # Mushroom body
+                'LH', 'LHPV',  # Lateral horn
+                'DNa', 'DNb', 'DNc', 'DNd', 'DNg', 'DNp', 'DN', 'MDN'  # Descending neurons
             ]
         
-        logger.info(f"Fetching subcircuit for regions: {target_regions}")
+        logger.info(f"Fetching subcircuit for cell types: {target_regions}")
         neurons, synapses = self.fetch_subcircuit(
             pre_regions=target_regions[:7],  # Optic lobes as input
             post_regions=target_regions[7:],  # Central complex, MB, LH, DN as output
