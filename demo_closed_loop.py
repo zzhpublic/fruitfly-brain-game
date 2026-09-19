@@ -391,9 +391,11 @@ class ClosedLoopDemo:
     
     def _map_spikes_to_action(self, spikes: dict) -> np.ndarray:
         """Map network output spikes to game action."""
+        # All games now read from descending_neurons for consistency
+        desc_spikes = spikes.get("descending_neurons", np.array([]))
+        
         if self.game_name == "pong":
-            action = np.zeros(10)
-            desc_spikes = spikes.get("central_complex", np.array([]))
+            action = np.zeros(10)  # 5 up, 5 down
             if len(desc_spikes) > 0:
                 for i in range(10):
                     idx = int(i * len(desc_spikes) / 10)
@@ -402,8 +404,7 @@ class ClosedLoopDemo:
             return action
             
         elif self.game_name == "maze":
-            action = np.zeros(12)
-            desc_spikes = spikes.get("central_complex", np.array([]))
+            action = np.zeros(12)  # 4 left, 4 right, 4 forward
             if len(desc_spikes) > 0:
                 for i in range(12):
                     idx = int(i * len(desc_spikes) / 12)
@@ -412,8 +413,7 @@ class ClosedLoopDemo:
             return action
             
         elif self.game_name == "odor":
-            action = np.zeros(12)
-            desc_spikes = spikes.get("lateral_horn", np.array([]))
+            action = np.zeros(12)  # 4 left, 4 right, 4 forward
             if len(desc_spikes) > 0:
                 for i in range(12):
                     idx = int(i * len(desc_spikes) / 12)
@@ -422,8 +422,7 @@ class ClosedLoopDemo:
             return action
             
         elif self.game_name == "looming":
-            action = np.zeros(10)
-            desc_spikes = spikes.get("central_complex", np.array([]))
+            action = np.zeros(10)  # escape neurons
             if len(desc_spikes) > 0:
                 for i in range(10):
                     idx = int(i * len(desc_spikes) / 10)
@@ -432,14 +431,12 @@ class ClosedLoopDemo:
             return action
             
         elif self.game_name == "pinball":
-            action = np.zeros(3)  # LEFT, STAY, RIGHT
-            desc_spikes = spikes.get("descending_neurons", np.array([]))
+            action = np.zeros(10)  # 5 left, 5 right (matching env n_action_neurons)
             if len(desc_spikes) > 0:
-                left_spikes = desc_spikes[:5].sum() if len(desc_spikes) >= 5 else 0
-                right_spikes = desc_spikes[5:10].sum() if len(desc_spikes) >= 10 else 0
-                stay_spikes = desc_spikes[10:15].sum() if len(desc_spikes) >= 15 else 0
-                rates = [left_spikes/5, stay_spikes/5, right_spikes/5]
-                action = np.array(rates)
+                for i in range(10):
+                    idx = int(i * len(desc_spikes) / 10)
+                    if idx < len(desc_spikes):
+                        action[i] = desc_spikes[idx].astype(float) * 10
             return action
         
         return np.array([])

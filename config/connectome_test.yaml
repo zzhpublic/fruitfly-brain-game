@@ -36,9 +36,9 @@ regions:
     neurotransmitters: ["acetylcholine", "GABA", "glutamate"]
     neuron_params:
       C_m: 120.0
-      g_L: 12.0
+      g_L: 10.0
       E_L: -60.0
-      V_th: -40.0
+      V_th: -45.0
       V_reset: -60.0
       t_ref: 2.0
       E_rev: -70.0
@@ -81,9 +81,9 @@ regions:
     neurotransmitters: ["acetylcholine", "glutamate"]
     neuron_params:
       C_m: 200.0
-      g_L: 20.0
+      g_L: 15.0
       E_L: -60.0
-      V_th: -40.0
+      V_th: -45.0
       V_reset: -60.0
       t_ref: 1.0
       E_rev: 0.0
@@ -205,16 +205,23 @@ connections:
   
   - from: "central_complex"
     to: "central_complex"
-    probability: 0.3
-    weight_scale: 0.4
+    probability: 0.5
+    weight_scale: 0.6
     delay: 0.5
     stdp: "recurrent"
   
   - from: "mushroom_body"
     to: "mushroom_body"
-    probability: 0.3
-    weight_scale: 0.3
+    probability: 0.4
+    weight_scale: 0.4
     delay: 1.0
+    stdp: "recurrent"
+  
+  - from: "descending_neurons"
+    to: "descending_neurons"
+    probability: 0.3
+    weight_scale: 0.5
+    delay: 0.5
     stdp: "recurrent"
 
 connection_probabilities:
@@ -226,6 +233,7 @@ connection_probabilities:
   "mushroom_body->central_complex": 0.5
   "central_complex->descending_neurons": 0.8
   "central_complex->mushroom_body": 0.5
+  "central_complex->central_complex": 0.5
   "lateral_horn->descending_neurons": 0.8
   "lateral_horn->central_complex": 0.5
   "neuromodulatory->mushroom_body": 0.8
@@ -234,8 +242,8 @@ connection_probabilities:
   "neuromodulatory->optic_lobes": 0.5
   "neuromodulatory->descending_neurons": 0.8
   "optic_lobes->optic_lobes": 0.1
-  "central_complex->central_complex": 0.3
-  "mushroom_body->mushroom_body": 0.3
+  "mushroom_body->mushroom_body": 0.4
+  "descending_neurons->descending_neurons": 0.3
 
 stdp_params:
   visual_to_mb:
@@ -328,7 +336,7 @@ stdp_params:
 
 simulation:
   dt: 0.1
-  conn_scale: 100.0
+  conn_scale: 200.0
   enforce_dale: false
   use_neuromodulation: true
   max_synapses: 500000

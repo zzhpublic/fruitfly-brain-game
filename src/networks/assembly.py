@@ -2,10 +2,10 @@
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
-from ..neurons.lif import LIFNeuron, LIFPopulation, LIFParams
-from ..synapses.stdp import STDPSynapse, STDPParams
-from ..neuromod.modulator import UnifiedNeuromodulation
-from ..connectome.loader import ConnectomeData, Neuron, Synapse
+from src.neurons.lif import LIFNeuron, LIFPopulation, LIFParams
+from src.synapses.stdp import STDPSynapse, STDPParams
+from src.neuromod.modulator import UnifiedNeuromodulation
+from src.connectome.loader import ConnectomeData, Neuron, Synapse
 
 @dataclass
 class NetworkConfig:
@@ -230,9 +230,10 @@ class NetworkBuilder:
         # Store spikes for next step (copy arrays to avoid reference issues)
         self.prev_spikes = {region: spikes.copy() for region, spikes in all_spikes.items()}
         
-        # Update STDP
+        # Update STDP using PREVIOUS step's pre-spikes (t) and CURRENT step's post-spikes (t+1)
+        # This implements the correct temporal order: pre@t -> post@t+1
         for (pre_r, post_r), syn in self.synapses.items():
-            pre_spikes = all_spikes.get(pre_r, np.array([], dtype=bool))
+            pre_spikes = self.prev_spikes.get(pre_r, np.array([], dtype=bool))
             post_spikes = all_spikes.get(post_r, np.array([], dtype=bool))
             
             da = None

@@ -197,16 +197,26 @@ def train_pong(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
                         I_optic[idx] += 50.0
             
             external_input = {"optic_lobes": I_optic}
-            spikes = network.step(external_input=external_input)
+            
+            # Prepare rewards for dopamine
+            rewards = {"descending_neurons": max(reward, 0), "central_complex": max(reward, 0) * 0.5}
+            punishments = {"descending_neurons": -min(reward, 0)} if reward < 0 else {}
+            
+            spikes = network.step(external_input=external_input, rewards=rewards, punishments=punishments)
             
             action = np.zeros(10)
             if len(descending_ids) > 0:
-                desc_spikes = spikes.get("central_complex", np.array([]))
+                desc_spikes = spikes.get("descending_neurons", np.array([]))
                 if len(desc_spikes) > 0:
-                    for i in range(10):
-                        idx = int(i * len(desc_spikes) / 10)
-                        if idx < len(desc_spikes):
-                            action[i] = desc_spikes[idx].astype(float) * 10
+                    # desc_spikes is boolean array, compute rate per group
+                    n_groups = 10
+                    group_size = len(desc_spikes) // n_groups
+                    for i in range(n_groups):
+                        start = i * group_size
+                        end = start + group_size
+                        group_spikes = desc_spikes[start:end].sum()
+                        rate = group_spikes / group_size if group_size > 0 else 0
+                        action[i] = rate * 10.0
             
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -267,15 +277,25 @@ def train_maze(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
                     I_central[idx] += 40.0
             
             external_input = {"optic_lobes": I_optic, "central_complex": I_central}
-            spikes = network.step(external_input=external_input)
+            
+            # Prepare rewards for dopamine
+            rewards = {"descending_neurons": max(reward, 0), "central_complex": max(reward, 0) * 0.5}
+            punishments = {"descending_neurons": -min(reward, 0)} if reward < 0 else {}
+            
+            spikes = network.step(external_input=external_input, rewards=rewards, punishments=punishments)
             
             action = np.zeros(12)
-            desc_spikes = spikes.get("central_complex", np.array([]))
+            desc_spikes = spikes.get("descending_neurons", np.array([]))
             if len(desc_spikes) > 0:
-                for i in range(12):
-                    idx = int(i * len(desc_spikes) / 12)
-                    if idx < len(desc_spikes):
-                        action[i] = desc_spikes[idx].astype(float) * 10
+                # desc_spikes is boolean array, compute rate per group
+                n_groups = 12
+                group_size = len(desc_spikes) // n_groups
+                for i in range(n_groups):
+                    start = i * group_size
+                    end = start + group_size
+                    group_spikes = desc_spikes[start:end].sum()
+                    rate = group_spikes / group_size if group_size > 0 else 0
+                    action[i] = rate * 10.0
             
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -335,15 +355,25 @@ def train_odor(network: NetworkBuilder, n_episodes: int = 100, render: bool = Fa
                     I_lh[idx] += 30.0
             
             external_input = {"mushroom_body": I_mb, "lateral_horn": I_lh}
-            spikes = network.step(external_input=external_input)
+            
+            # Prepare rewards for dopamine
+            rewards = {"descending_neurons": max(reward, 0), "lateral_horn": max(reward, 0) * 0.5}
+            punishments = {"descending_neurons": -min(reward, 0)} if reward < 0 else {}
+            
+            spikes = network.step(external_input=external_input, rewards=rewards, punishments=punishments)
             
             action = np.zeros(12)
-            desc_spikes = spikes.get("lateral_horn", np.array([]))
+            desc_spikes = spikes.get("descending_neurons", np.array([]))
             if len(desc_spikes) > 0:
-                for i in range(12):
-                    idx = int(i * len(desc_spikes) / 12)
-                    if idx < len(desc_spikes):
-                        action[i] = desc_spikes[idx].astype(float) * 10
+                # desc_spikes is boolean array, compute rate per group
+                n_groups = 12
+                group_size = len(desc_spikes) // n_groups
+                for i in range(n_groups):
+                    start = i * group_size
+                    end = start + group_size
+                    group_spikes = desc_spikes[start:end].sum()
+                    rate = group_spikes / group_size if group_size > 0 else 0
+                    action[i] = rate * 10.0
             
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -394,15 +424,25 @@ def train_looming(network: NetworkBuilder, n_episodes: int = 100, render: bool =
                     I_optic[idx] += 100.0
             
             external_input = {"optic_lobes": I_optic}
-            spikes = network.step(external_input=external_input)
+            
+            # Prepare rewards for dopamine
+            rewards = {"descending_neurons": max(reward, 0), "central_complex": max(reward, 0) * 0.5}
+            punishments = {"descending_neurons": -min(reward, 0)} if reward < 0 else {}
+            
+            spikes = network.step(external_input=external_input, rewards=rewards, punishments=punishments)
             
             action = np.zeros(10)
-            desc_spikes = spikes.get("central_complex", np.array([]))
+            desc_spikes = spikes.get("descending_neurons", np.array([]))
             if len(desc_spikes) > 0:
-                for i in range(10):
-                    idx = int(i * len(desc_spikes) / 10)
-                    if idx < len(desc_spikes):
-                        action[i] = desc_spikes[idx].astype(float) * 10
+                # desc_spikes is boolean array, compute rate per group
+                n_groups = 10
+                group_size = len(desc_spikes) // n_groups
+                for i in range(n_groups):
+                    start = i * group_size
+                    end = start + group_size
+                    group_spikes = desc_spikes[start:end].sum()
+                    rate = group_spikes / group_size if group_size > 0 else 0
+                    action[i] = rate * 10.0
             
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated
@@ -460,18 +500,27 @@ def train_pinball(network: NetworkBuilder, n_episodes: int = 100, render: bool =
                         I_optic[idx] += 50.0
                 external_input["optic_lobes"] = I_optic
             
+            # Prepare rewards for dopamine (use previous step's reward)
+            rewards = {"descending_neurons": max(total_reward, 0), "central_complex": max(total_reward, 0) * 0.5}
+            punishments = {"descending_neurons": -min(total_reward, 0)} if total_reward < 0 else {}
+            
             # Network step
-            spikes = network.step(external_input=external_input)
+            spikes = network.step(external_input=external_input, rewards=rewards, punishments=punishments)
             
             # Map network output to action
             action = np.zeros(10)
             if len(descending_ids) > 0:
-                desc_spikes = spikes.get("central_complex", np.array([]))
+                desc_spikes = spikes.get("descending_neurons", np.array([]))
                 if len(desc_spikes) > 0:
-                    for i in range(10):
-                        idx = int(i * len(desc_spikes) / 10)
-                        if idx < len(desc_spikes):
-                            action[i] = desc_spikes[idx].astype(float) * 10
+                    # desc_spikes is boolean array, compute rate per group
+                    n_groups = 10
+                    group_size = len(desc_spikes) // n_groups
+                    for i in range(n_groups):
+                        start = i * group_size
+                        end = start + group_size
+                        group_spikes = desc_spikes[start:end].sum()
+                        rate = group_spikes / group_size if group_size > 0 else 0
+                        action[i] = rate * 10.0
             
             obs, reward, terminated, truncated, info = env.step(action)
             done = terminated or truncated

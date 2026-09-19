@@ -138,7 +138,7 @@ class LIFPopulation:
         # Membrane potential update (conductance-based)
         # C dV/dt = -g_L(V - E_L) - g_syn(V - E_rev) + I_ext + I_syn_ext
         I_syn = self.g_syn * (self.V - self.params.E_rev)
-        total_I = I_ext
+        total_I = 0.0 if I_ext is None else I_ext
         if I_syn_ext is not None:
             total_I = total_I + I_syn_ext
         dV = (-self.params.g_L * (self.V - self.params.E_L) - I_syn + total_I) / self.params.C_m
